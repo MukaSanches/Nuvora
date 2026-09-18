@@ -11,6 +11,8 @@ rm -rf "$WORK" "$PUBLIC"
 mkdir -p "$WORK" "$TOOLS" "$PUBLIC"
 
 python3 "$RELAY/decrypt.py" "$RELAY" "$WORK" "$QP_BUILD_KEY"
+mkdir -p "$WORK/app/src/main/res/drawable-nodpi"
+cp "$RELAY/assets/quick_print_logo_official.webp" "$WORK/app/src/main/res/drawable-nodpi/quick_print_logo_official.webp"
 
 # JDK 17
 if [ ! -x "$TOOLS/jdk/bin/java" ]; then
