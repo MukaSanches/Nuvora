@@ -48,6 +48,27 @@ PY
 # Overlay files remain encrypted in the relay; key stays in Render secrets.
 python3 "$RELAY/v152/decrypt_overlay.py" "$RELAY/v152" "$WORK" "$QP_BUILD_KEY_V152"
 
+# Keep the 1.5.2 Bluetooth runtime permission guard visible to Android Lint.
+python3 - "$WORK/app/src/main/java/br/com/quickprint/os/integration/ThermalPrinter.kt" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+if "import android.annotation.SuppressLint" not in text:
+    text = text.replace("import android.Manifest\n", "import android.Manifest\nimport android.annotation.SuppressLint\n", 1)
+text = text.replace(
+    "    fun pairedPrinters(context: Context): Result<List<BluetoothPrinterEndpoint>> = runCatching {",
+    "    @SuppressLint(\"MissingPermission\")\n    fun pairedPrinters(context: Context): Result<List<BluetoothPrinterEndpoint>> = runCatching {",
+    1,
+)
+text = text.replace(
+    "    fun printTest(context: Context, address: String? = null): Result<Unit> = runCatching {",
+    "    @SuppressLint(\"MissingPermission\")\n    fun printTest(context: Context, address: String? = null): Result<Unit> = runCatching {",
+    1,
+)
+path.write_text(text, encoding="utf-8")
+PY
+
 mkdir -p "$WORK/app/src/main/res/drawable-nodpi"
 cp "$RELAY/assets/quick_print_logo_official.webp" "$WORK/app/src/main/res/drawable-nodpi/quick_print_logo_official.webp"
 
