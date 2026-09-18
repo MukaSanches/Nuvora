@@ -31,7 +31,7 @@ out=Path(sys.argv[2])
 key=base64.b64decode(sys.argv[3])
 out.mkdir(parents=True,exist_ok=True)
 
-for chunk in range(4):
+for chunk in range(5):
     nonce=bytes([0x51,0x50,0x43,0x48,0x55,0x4e,0x4b,0x31,chunk,0,0,0])
     enc=base64.b64decode((relay/f"chunk{chunk}.b64").read_text().strip())
     plain=decrypt(enc,key,nonce)
