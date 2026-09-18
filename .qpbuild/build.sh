@@ -14,76 +14,40 @@ python3 "$RELAY/decrypt.py" "$RELAY" "$WORK" "$QP_BUILD_KEY"
 mkdir -p "$WORK/app/src/main/res/drawable-nodpi"
 cp "$RELAY/assets/quick_print_logo_official.webp" "$WORK/app/src/main/res/drawable-nodpi/quick_print_logo_official.webp"
 
-# Hotfix 1.3.1: garante que instalações novas ou bancos que ficaram sem usuário
-# tenham sempre um Proprietário local ativo. Esta é a única correção funcional
-# aplicada sobre o snapshot 1.3.0.
+# Hotfix 1.3.1: corrige exclusivamente o bootstrap do usuário local.
+# Se o banco abrir sem usuário ativo, cria o Proprietário antes de liberar a autenticação.
 python3 - "$WORK" <<'PY'
 from pathlib import Path
+import re
 import sys
 
 work = Path(sys.argv[1])
-db = work / "app/src/main/java/br/com/quickprint/os/data/QuickPrintDatabase.kt"
-text = db.read_text(encoding="utf-8")
+vm = work / "app/src/main/java/br/com/quickprint/os/QuickPrintViewModel.kt"
+text = vm.read_text(encoding="utf-8")
 
-old = """.addCallback(object : RoomDatabase.Callback() {
-                        override fun onCreate(db: SupportSQLiteDatabase) {
-                            super.onCreate(db)
-                            db.execSQL(
-                                \"\\"\"
-                                INSERT INTO app_users(
-                                    name, role, pinHash, active, createdAt, updatedAt, deletedAt
-                                ) VALUES(
-                                    'Proprietário', 'OWNER', '', 1,
-                                    CAST(strftime('%s','now') AS INTEGER) * 1000,
-                                    CAST(strftime('%s','now') AS INTEGER) * 1000,
-                                    NULL
-                                )
-                                \"\\"\\".trimIndent()
-                            )
-                        }
-                    })"""
+pattern = re.compile(r'(?m)^(\s*)val first = repository\.firstActiveUser\(\)\s*$')
+match = pattern.search(text)
+if not match:
+    raise SystemExit("hotfix abortado: bootstrap de usuário não encontrado")
 
-new = """.addCallback(object : RoomDatabase.Callback() {
-                        private fun ensureDefaultOwner(db: SupportSQLiteDatabase) {
-                            db.execSQL(
-                                \"\\"\"
-                                INSERT INTO app_users(
-                                    name, role, pinHash, active, createdAt, updatedAt, deletedAt
-                                )
-                                SELECT
-                                    'Proprietário', 'OWNER', '', 1,
-                                    CAST(strftime('%s','now') AS INTEGER) * 1000,
-                                    CAST(strftime('%s','now') AS INTEGER) * 1000,
-                                    NULL
-                                WHERE NOT EXISTS (
-                                    SELECT 1 FROM app_users
-                                    WHERE active = 1 AND deletedAt IS NULL
-                                )
-                                \"\\"\\".trimIndent()
-                            )
-                        }
-
-                        override fun onCreate(db: SupportSQLiteDatabase) {
-                            super.onCreate(db)
-                            ensureDefaultOwner(db)
-                        }
-
-                        override fun onOpen(db: SupportSQLiteDatabase) {
-                            super.onOpen(db)
-                            ensureDefaultOwner(db)
-                        }
-                    })"""
-
-if old not in text:
-    raise SystemExit("hotfix abortado: callback esperado não encontrado")
-db.write_text(text.replace(old, new, 1), encoding="utf-8")
+indent = match.group(1)
+patched = (
+    f"{indent}var first = repository.firstActiveUser()\n"
+    f"{indent}if (first == null) {{\n"
+    f"{indent}    repository.addUser(\"Proprietário\", UserRole.OWNER)\n"
+    f"{indent}    first = repository.firstActiveUser()\n"
+    f"{indent}}}"
+)
+text = text[:match.start()] + patched + text[match.end():]
+vm.write_text(text, encoding="utf-8")
 
 gradle = work / "app/build.gradle.kts"
 g = gradle.read_text(encoding="utf-8")
-g2 = g.replace('versionCode = 4', 'versionCode = 5', 1).replace('versionName = "1.3.0"', 'versionName = "1.3.1"', 1)
-if g2 == g:
-    raise SystemExit("hotfix abortado: versão 1.3.0 não encontrada")
-gradle.write_text(g2, encoding="utf-8")
+g, n1 = re.subn(r'versionCode\s*=\s*4\b', 'versionCode = 5', g, count=1)
+g, n2 = re.subn(r'versionName\s*=\s*"1\.3\.0"', 'versionName = "1.3.1"', g, count=1)
+if n1 != 1 or n2 != 1:
+    raise SystemExit("hotfix abortado: versão 1.3.0 esperada não encontrada")
+gradle.write_text(g, encoding="utf-8")
 PY
 
 # JDK 17
