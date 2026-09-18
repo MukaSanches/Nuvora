@@ -1,0 +1,10 @@
+{
+  "version": "1.5.1",
+  "versionCode": 7,
+  "sourceRepo": "MukaSanches/quickprint-os-android",
+  "sourceTree": "ae943caa5fe9025baaecc11afcc63d7da63203e2",
+  "sourceFiles": 120,
+  "chunks": 8,
+  "cipher": "ChaCha20",
+  "note": "Private source relay; key stored only in Render environment."
+}
