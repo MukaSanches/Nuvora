@@ -69,6 +69,9 @@ text = text.replace(
 path.write_text(text, encoding="utf-8")
 PY
 
+# Apply Quick Print OS 1.6.0 Public Data Hub as a strictly additive overlay.
+python3 "$RELAY/v160/decrypt_overlay.py" "$RELAY/v160" "$WORK" "$QP_BUILD_KEY_V160"
+
 mkdir -p "$WORK/app/src/main/res/drawable-nodpi"
 cp "$RELAY/assets/quick_print_logo_official.webp" "$WORK/app/src/main/res/drawable-nodpi/quick_print_logo_official.webp"
 
@@ -122,8 +125,8 @@ cd "$WORK"
 
 VERSION_CODE="$(sed -n 's/.*versionCode = \([0-9][0-9]*\).*/\1/p' app/build.gradle.kts | head -1)"
 VERSION_NAME="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)"
-test "$VERSION_CODE" = "8"
-test "$VERSION_NAME" = "1.5.2"
+test "$VERSION_CODE" = "9"
+test "$VERSION_NAME" = "1.6.0"
 
 echo "=== UNIT TESTS ==="
 gradle --no-daemon testDebugUnitTest
@@ -148,7 +151,7 @@ APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
 echo "=== APK IDENTITY ==="
 BADGING="$("$AAPT" dump badging "$APK_SOURCE")"
 printf '%s\n' "$BADGING" | sed -n '1,8p'
-printf '%s\n' "$BADGING" | grep -Fq "package: name='br.com.quickprint.os' versionCode='8' versionName='1.5.2'"
+printf '%s\n' "$BADGING" | grep -Fq "package: name='br.com.quickprint.os' versionCode='9' versionName='1.6.0'"
 
 echo "=== SIGNATURE VALIDATION ==="
 "$APKSIGNER" verify --verbose --print-certs "$APK_SOURCE"
@@ -176,7 +179,7 @@ cp "$APK_SOURCE" "$PUBLIC/$APK_VERSIONED"
 cp "$APK_SOURCE" "$PUBLIC/$APK_LATEST"
 
 SHA256="$(sha256sum "$PUBLIC/$APK_LATEST" | awk '{print $1}')"
-NOTES="${QP_RELEASE_NOTES:-Quick Print OS 1.5.2 — impressão: descoberta ampliada, Bluetooth pareado, Android Print Framework e impressão direta de documentos/OS.}"
+NOTES="${QP_RELEASE_NOTES:-Quick Print OS 1.6.0 — Public Data Hub: BrasilAPI, IBGE, PNCP e Compras.gov sem credenciais, com cache local e sem alterar os fluxos existentes.}"
 
 python3 - "$PUBLIC/latest.json" "$VERSION_CODE" "$VERSION_NAME" "$SHA256" "$NOTES" <<'PY'
 import json, sys
@@ -197,7 +200,7 @@ cat > "$PUBLIC/index.html" <<HTML
 <html lang="pt-BR">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Quick Print OS 1.5.2</title>
+<title>Quick Print OS 1.6.0</title>
 <style>
 body{font-family:system-ui,sans-serif;background:#f5f7fa;color:#142033;margin:0;padding:32px}
 main{max-width:680px;margin:auto;background:#fff;border-radius:24px;padding:30px;box-shadow:0 12px 40px #14203318}
