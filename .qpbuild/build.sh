@@ -14,6 +14,78 @@ python3 "$RELAY/decrypt.py" "$RELAY" "$WORK" "$QP_BUILD_KEY"
 mkdir -p "$WORK/app/src/main/res/drawable-nodpi"
 cp "$RELAY/assets/quick_print_logo_official.webp" "$WORK/app/src/main/res/drawable-nodpi/quick_print_logo_official.webp"
 
+# Hotfix 1.3.1: garante que instalações novas ou bancos que ficaram sem usuário
+# tenham sempre um Proprietário local ativo. Esta é a única correção funcional
+# aplicada sobre o snapshot 1.3.0.
+python3 - "$WORK" <<'PY'
+from pathlib import Path
+import sys
+
+work = Path(sys.argv[1])
+db = work / "app/src/main/java/br/com/quickprint/os/data/QuickPrintDatabase.kt"
+text = db.read_text(encoding="utf-8")
+
+old = """.addCallback(object : RoomDatabase.Callback() {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            super.onCreate(db)
+                            db.execSQL(
+                                \"\\"\"
+                                INSERT INTO app_users(
+                                    name, role, pinHash, active, createdAt, updatedAt, deletedAt
+                                ) VALUES(
+                                    'Proprietário', 'OWNER', '', 1,
+                                    CAST(strftime('%s','now') AS INTEGER) * 1000,
+                                    CAST(strftime('%s','now') AS INTEGER) * 1000,
+                                    NULL
+                                )
+                                \"\\"\\".trimIndent()
+                            )
+                        }
+                    })"""
+
+new = """.addCallback(object : RoomDatabase.Callback() {
+                        private fun ensureDefaultOwner(db: SupportSQLiteDatabase) {
+                            db.execSQL(
+                                \"\\"\"
+                                INSERT INTO app_users(
+                                    name, role, pinHash, active, createdAt, updatedAt, deletedAt
+                                )
+                                SELECT
+                                    'Proprietário', 'OWNER', '', 1,
+                                    CAST(strftime('%s','now') AS INTEGER) * 1000,
+                                    CAST(strftime('%s','now') AS INTEGER) * 1000,
+                                    NULL
+                                WHERE NOT EXISTS (
+                                    SELECT 1 FROM app_users
+                                    WHERE active = 1 AND deletedAt IS NULL
+                                )
+                                \"\\"\\".trimIndent()
+                            )
+                        }
+
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            super.onCreate(db)
+                            ensureDefaultOwner(db)
+                        }
+
+                        override fun onOpen(db: SupportSQLiteDatabase) {
+                            super.onOpen(db)
+                            ensureDefaultOwner(db)
+                        }
+                    })"""
+
+if old not in text:
+    raise SystemExit("hotfix abortado: callback esperado não encontrado")
+db.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+gradle = work / "app/build.gradle.kts"
+g = gradle.read_text(encoding="utf-8")
+g2 = g.replace('versionCode = 4', 'versionCode = 5', 1).replace('versionName = "1.3.0"', 'versionName = "1.3.1"', 1)
+if g2 == g:
+    raise SystemExit("hotfix abortado: versão 1.3.0 não encontrada")
+gradle.write_text(g2, encoding="utf-8")
+PY
+
 # JDK 17
 if [ ! -x "$TOOLS/jdk/bin/java" ]; then
   curl -L --fail --retry 3 -o "$TOOLS/jdk.tar.gz" "https://api.adoptium.net/v3/binary/latest/17/ga/linux/x64/jdk/hotspot/normal/eclipse"
