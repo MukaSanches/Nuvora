@@ -13,6 +13,35 @@ mkdir -p "$WORK" "$TOOLS" "$PUBLIC"
 # Quick Print OS 1.5.1 private source relay.
 # Source is encrypted at rest in this public relay; decryption key stays in Render secrets.
 python3 "$RELAY/v151/decrypt.py" "$RELAY/v151" "$WORK" "$QP_BUILD_KEY_V151"
+
+# Hotfix synced from quickprint-os-android feature/v1.5.1-connected-operations.
+# Remove the constructor overload ambiguity discovered by the signed build itself.
+python3 - "$WORK/app/src/main/java/br/com/quickprint/os/delivery/DeliveryRepository.kt" <<'PY'
+from pathlib import Path
+import re, sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = text.replace(
+    "class DeliveryRepository private constructor(",
+    "class DeliveryRepository internal constructor(",
+    1,
+)
+text = text.replace(
+    "    private val gson: Gson,\n    private val postalCodeProvider",
+    "    private val gson: Gson = Gson(),\n    private val postalCodeProvider",
+    1,
+)
+pattern = re.compile(
+    r"\n    internal constructor\(\n"
+    r"        dao: DeliveryDao,[\s\S]*?"
+    r"\n    \)\n\n    val deliveries:"
+)
+text, count = pattern.subn("\n\n    val deliveries:", text, count=1)
+if count != 1:
+    raise SystemExit("DeliveryRepository constructor hotfix did not match exactly once")
+path.write_text(text, encoding="utf-8")
+PY
 mkdir -p "$WORK/app/src/main/res/drawable-nodpi"
 cp "$RELAY/assets/quick_print_logo_official.webp" "$WORK/app/src/main/res/drawable-nodpi/quick_print_logo_official.webp"
 
