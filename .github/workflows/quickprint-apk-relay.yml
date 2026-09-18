@@ -1,0 +1,37 @@
+name: Quick Print APK Relay
+
+on:
+  push:
+    branches: [ "quickprint-build-relay" ]
+    paths:
+      - ".github/workflows/quickprint-apk-relay.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  relay-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Baixar APK já validado
+        run: |
+          curl -L --fail --retry 5 --retry-delay 2             -o QuickPrintOS-v1.0.0-debug.apk             https://quickprint-os-apk-v1.onrender.com/QuickPrintOS-v1.0.0-debug.apk
+
+      - name: Validar arquivo APK
+        run: |
+          test -s QuickPrintOS-v1.0.0-debug.apk
+          unzip -t QuickPrintOS-v1.0.0-debug.apk
+          sha256sum QuickPrintOS-v1.0.0-debug.apk | tee QuickPrintOS-v1.0.0-debug.sha256
+          ls -lh QuickPrintOS-v1.0.0-debug.apk
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuickPrintOS-v1.0.0-debug
+          path: |
+            QuickPrintOS-v1.0.0-debug.apk
+            QuickPrintOS-v1.0.0-debug.sha256
+          if-no-files-found: error
+          retention-days: 30
