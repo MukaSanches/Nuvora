@@ -1,0 +1,22 @@
+[
+  {
+    "path": "app/build.gradle.kts",
+    "file": "file_01.enc",
+    "nonce": "000000000000000000000001"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/ui/OperationsCenterScreen.kt",
+    "file": "file_02.enc",
+    "nonce": "000000000000000000000002"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/connected/publicdata/PublicDataHubClient.kt",
+    "file": "file_03.enc",
+    "nonce": "000000000000000000000003"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/connected/publicdata/PublicDataHubScreen.kt",
+    "file": "file_04.enc",
+    "nonce": "000000000000000000000004"
+  }
+]
