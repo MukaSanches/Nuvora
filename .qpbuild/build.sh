@@ -14,7 +14,6 @@ python3 "$RELAY/decrypt.py" "$RELAY" "$WORK" "$QP_BUILD_KEY"
 
 # JDK 17
 if [ ! -x "$TOOLS/jdk/bin/java" ]; then
-  echo "Downloading JDK 17..."
   curl -L --fail --retry 3 -o "$TOOLS/jdk.tar.gz" "https://api.adoptium.net/v3/binary/latest/17/ga/linux/x64/jdk/hotspot/normal/eclipse"
   rm -rf "$TOOLS/jdk-tmp" "$TOOLS/jdk"
   mkdir -p "$TOOLS/jdk-tmp"
@@ -26,7 +25,6 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 # Gradle 8.10.2
 if [ ! -x "$TOOLS/gradle/bin/gradle" ]; then
-  echo "Downloading Gradle..."
   curl -L --fail --retry 3 -o "$TOOLS/gradle.zip" "https://services.gradle.org/distributions/gradle-8.10.2-bin.zip"
   rm -rf "$TOOLS/gradle-tmp" "$TOOLS/gradle"
   mkdir -p "$TOOLS/gradle-tmp"
@@ -39,7 +37,6 @@ export PATH="$TOOLS/gradle/bin:$PATH"
 export ANDROID_HOME="$TOOLS/android-sdk"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 if [ ! -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
-  echo "Downloading Android command line tools..."
   mkdir -p "$ANDROID_HOME/cmdline-tools"
   curl -L --fail --retry 3 -o "$TOOLS/android-tools.zip" "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
   rm -rf "$ANDROID_HOME/cmdline-tools/latest" "$TOOLS/android-unzip"
@@ -52,20 +49,55 @@ export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
 yes | sdkmanager --licenses >/dev/null || true
 sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
+# Stable Quick Print signing key
+KEYSTORE="$TOOLS/quickprint-release.jks"
+printf '%s' "$QP_RELEASE_KEYSTORE_B64" | base64 -d > "$KEYSTORE"
+export QP_KEYSTORE_PATH="$KEYSTORE"
+export QP_KEYSTORE_PASSWORD="$QP_RELEASE_KEYSTORE_PASSWORD"
+export QP_KEY_ALIAS="${QP_RELEASE_KEY_ALIAS:-quickprint}"
+export QP_KEY_PASSWORD="$QP_RELEASE_KEY_PASSWORD"
+
 cd "$WORK"
+
+VERSION_CODE="$(sed -n 's/.*versionCode = \([0-9][0-9]*\).*/\1/p' app/build.gradle.kts | head -1)"
+VERSION_NAME="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)"
+test -n "$VERSION_CODE"
+test -n "$VERSION_NAME"
 
 echo "=== UNIT TESTS ==="
 gradle --no-daemon testDebugUnitTest
 
 echo "=== ANDROID LINT ==="
-gradle --no-daemon lintDebug
+gradle --no-daemon lintRelease
 
-echo "=== APK BUILD ==="
-gradle --no-daemon assembleDebug
+echo "=== SIGNED RELEASE APK ==="
+gradle --no-daemon assembleRelease
 
-cp app/build/outputs/apk/debug/app-debug.apk "$PUBLIC/QuickPrintOS-v1.0.0-debug.apk"
+APK_SOURCE="app/build/outputs/apk/release/app-release.apk"
+APK_VERSIONED="QuickPrintOS-v${VERSION_NAME}.apk"
+APK_LATEST="QuickPrintOS-latest.apk"
 
-cat > "$PUBLIC/index.html" <<'HTML'
+cp "$APK_SOURCE" "$PUBLIC/$APK_VERSIONED"
+cp "$APK_SOURCE" "$PUBLIC/$APK_LATEST"
+
+SHA256="$(sha256sum "$PUBLIC/$APK_LATEST" | awk '{print $1}')"
+NOTES="${QP_RELEASE_NOTES:-Atualização do Quick Print OS.}"
+
+python3 - "$PUBLIC/latest.json" "$VERSION_CODE" "$VERSION_NAME" "$SHA256" "$NOTES" <<'PY'
+import json, sys
+path, code, name, sha, notes = sys.argv[1:]
+payload = {
+  "versionCode": int(code),
+  "versionName": name,
+  "apkUrl": "https://quickprint-os-updates.onrender.com/QuickPrintOS-latest.apk",
+  "sha256": sha,
+  "notes": notes
+}
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(payload, f, ensure_ascii=False)
+PY
+
+cat > "$PUBLIC/index.html" <<HTML
 <!doctype html>
 <html lang="pt-BR">
 <meta charset="utf-8">
@@ -80,13 +112,15 @@ small{color:#667085}
 </style>
 <main>
 <h1>Quick Print OS</h1>
-<p>v1.0.0 • APK interno de teste</p>
+<p>v${VERSION_NAME} • build assinada</p>
 <div class="bar"></div>
-<p>Build que passou por testes unitários, Android Lint e compilação do APK.</p>
-<p><a href="./QuickPrintOS-v1.0.0-debug.apk">Baixar APK</a></p>
-<p><small>Pacote: br.com.quickprint.os</small></p>
+<p>Passou por testes unitários, Android Lint e compilação release.</p>
+<p><a href="./${APK_VERSIONED}">Baixar APK ${VERSION_NAME}</a></p>
+<p><small>Atualizações futuras são detectadas dentro do próprio aplicativo.</small></p>
 </main>
 </html>
 HTML
 
-ls -lh "$PUBLIC/QuickPrintOS-v1.0.0-debug.apk"
+echo "VERSION=$VERSION_NAME ($VERSION_CODE)"
+echo "SHA256=$SHA256"
+ls -lh "$PUBLIC/$APK_VERSIONED"
