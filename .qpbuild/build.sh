@@ -111,8 +111,9 @@ AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
 APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
 
 echo "=== APK IDENTITY ==="
-"$AAPT" dump badging "$APK_SOURCE" | head -8
-"$AAPT" dump badging "$APK_SOURCE" | grep -q "package: name='br.com.quickprint.os' versionCode='6' versionName='1.5.0'"
+BADGING="$("$AAPT" dump badging "$APK_SOURCE")"
+printf '%s\n' "$BADGING" | sed -n '1,8p'
+printf '%s\n' "$BADGING" | grep -Fq "package: name='br.com.quickprint.os' versionCode='6' versionName='1.5.0'"
 
 echo "=== SIGNATURE VALIDATION ==="
 "$APKSIGNER" verify --verbose --print-certs "$APK_SOURCE"
