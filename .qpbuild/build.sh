@@ -10,44 +10,36 @@ PUBLIC="$ROOT/.qpbuild/public"
 rm -rf "$WORK" "$PUBLIC"
 mkdir -p "$WORK" "$TOOLS" "$PUBLIC"
 
-python3 "$RELAY/decrypt.py" "$RELAY" "$WORK" "$QP_BUILD_KEY"
-mkdir -p "$WORK/app/src/main/res/drawable-nodpi"
-cp "$RELAY/assets/quick_print_logo_official.webp" "$WORK/app/src/main/res/drawable-nodpi/quick_print_logo_official.webp"
-
-# Hotfix 1.3.1: corrige exclusivamente o bootstrap do usuário local.
-# Se o banco abrir sem usuário ativo, cria o Proprietário antes de liberar a autenticação.
+# Quick Print OS 1.5 source relay.
+# The private source stays outside this public relay repository.
+# Render downloads the sealed base bundle plus short-lived private overlays.
 python3 - "$WORK" <<'PY'
-from pathlib import Path
-import re
-import sys
+import urllib.request, json, base64, pathlib, sys
 
-work = Path(sys.argv[1])
-vm = work / "app/src/main/java/br/com/quickprint/os/QuickPrintViewModel.kt"
-text = vm.read_text(encoding="utf-8")
+urls = [
+    "https://hatchable.com/s/eyJwIjo0ODc2MCwiayI6InRtcFwvcXAxNFwvc291cmNlLWJ1bmRsZS5qc29uIn0.ac6c5cf18007eea391f67885f4e278a2e6860412cfddaf03d92703ffb6ffbe13",
+    "https://hatchable.com/s/eyJwIjo0ODc2MCwiayI6InRtcFwvcXAxNFwvb3ZlcmxheS0wMS5qc29uIn0.1ba1fdec2b46eb38d5eed52b0739b9e350886a7332cc69d908e576285154dd65",
+    "https://hatchable.com/s/eyJwIjo0ODc2MCwiayI6InRtcFwvcXAxNFwvb3ZlcmxheS0wMi5qc29uIn0.3dfaca016ff236448a259ab44159466c0198a10c1d2df48e67fb72c60a97a8c7",
+    "https://hatchable-sites.s3.amazonaws.com/apps/48760/storage/tmp/qp15-release/overlay-1.json?X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA4Q6T3U6ITJF7RFW5%2F20260918%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260918T150053Z&X-Amz-SignedHeaders=host&X-Amz-Expires=3600&X-Amz-Signature=73010968724844a87f50d38d1656dceda2674e79665b77becbf162338e8b63d7",
+    "https://hatchable-sites.s3.amazonaws.com/apps/48760/storage/tmp/qp15-release/overlay-2.json?X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA4Q6T3U6ITJF7RFW5%2F20260918%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260918T150058Z&X-Amz-SignedHeaders=host&X-Amz-Expires=3600&X-Amz-Signature=0ae5fd51e2d14a6f24ddabce841cef7fcf8c49054eb9e4b096ff447f6a895968",
+    "https://hatchable-sites.s3.amazonaws.com/apps/48760/storage/tmp/qp15-release/overlay-3.json?X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA4Q6T3U6ITJF7RFW5%2F20260918%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260918T150102Z&X-Amz-SignedHeaders=host&X-Amz-Expires=3600&X-Amz-Signature=7cf7185776b4c20615cb3c9920b8652b868e103e2be2bc2a937382728dc2ef41"
+]
 
-pattern = re.compile(r'(?m)^(\s*)val first = repository\.firstActiveUser\(\)\s*$')
-match = pattern.search(text)
-if not match:
-    raise SystemExit("hotfix abortado: bootstrap de usuário não encontrado")
+root = pathlib.Path(sys.argv[1])
+writes = 0
+for url in urls:
+    with urllib.request.urlopen(url, timeout=120) as response:
+        entries = json.load(response)
+    for entry in entries:
+        path = root / entry["path"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if entry["encoding"] == "base64":
+            path.write_bytes(base64.b64decode(entry["content"]))
+        else:
+            path.write_text(entry["content"], encoding="utf-8")
+        writes += 1
 
-indent = match.group(1)
-patched = (
-    f"{indent}var first = repository.firstActiveUser()\n"
-    f"{indent}if (first == null) {{\n"
-    f"{indent}    repository.addUser(\"Proprietário\", UserRole.OWNER)\n"
-    f"{indent}    first = repository.firstActiveUser()\n"
-    f"{indent}}}"
-)
-text = text[:match.start()] + patched + text[match.end():]
-vm.write_text(text, encoding="utf-8")
-
-gradle = work / "app/build.gradle.kts"
-g = gradle.read_text(encoding="utf-8")
-g, n1 = re.subn(r'versionCode\s*=\s*4\b', 'versionCode = 5', g, count=1)
-g, n2 = re.subn(r'versionName\s*=\s*"1\.3\.0"', 'versionName = "1.3.1"', g, count=1)
-if n1 != 1 or n2 != 1:
-    raise SystemExit("hotfix abortado: versão 1.3.0 esperada não encontrada")
-gradle.write_text(g, encoding="utf-8")
+print("Quick Print 1.5 source writes:", writes)
 PY
 
 # JDK 17
@@ -87,9 +79,10 @@ export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
 yes | sdkmanager --licenses >/dev/null || true
 sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-# Stable Quick Print signing key
+# Stable Quick Print signing key. Values remain Render secrets.
 KEYSTORE="$TOOLS/quickprint-release.jks"
 printf '%s' "$QP_RELEASE_KEYSTORE_B64" | base64 -d > "$KEYSTORE"
+chmod 600 "$KEYSTORE"
 export QP_KEYSTORE_PATH="$KEYSTORE"
 export QP_KEYSTORE_PASSWORD="$QP_RELEASE_KEYSTORE_PASSWORD"
 export QP_KEY_ALIAS="${QP_RELEASE_KEY_ALIAS:-quickprint}"
@@ -99,8 +92,8 @@ cd "$WORK"
 
 VERSION_CODE="$(sed -n 's/.*versionCode = \([0-9][0-9]*\).*/\1/p' app/build.gradle.kts | head -1)"
 VERSION_NAME="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)"
-test -n "$VERSION_CODE"
-test -n "$VERSION_NAME"
+test "$VERSION_CODE" = "6"
+test "$VERSION_NAME" = "1.5.0"
 
 echo "=== UNIT TESTS ==="
 gradle --no-daemon testDebugUnitTest
@@ -112,6 +105,34 @@ echo "=== SIGNED RELEASE APK ==="
 gradle --no-daemon assembleRelease
 
 APK_SOURCE="app/build/outputs/apk/release/app-release.apk"
+test -s "$APK_SOURCE"
+
+AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+
+echo "=== APK IDENTITY ==="
+"$AAPT" dump badging "$APK_SOURCE" | head -8
+"$AAPT" dump badging "$APK_SOURCE" | grep -q "package: name='br.com.quickprint.os' versionCode='6' versionName='1.5.0'"
+
+echo "=== SIGNATURE VALIDATION ==="
+"$APKSIGNER" verify --verbose --print-certs "$APK_SOURCE"
+NEW_CERT="$("$APKSIGNER" verify --print-certs "$APK_SOURCE" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+test -n "$NEW_CERT"
+
+# Compare with the APK currently distributed before replacing it.
+PREVIOUS_APK="$TOOLS/QuickPrintOS-previous.apk"
+curl -L --fail --retry 3 -o "$PREVIOUS_APK" "https://quickprint-os-updates.onrender.com/QuickPrintOS-latest.apk"
+OLD_CERT="$("$APKSIGNER" verify --print-certs "$PREVIOUS_APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+test -n "$OLD_CERT"
+
+echo "PREVIOUS_CERT_SHA256=$OLD_CERT"
+echo "NEW_CERT_SHA256=$NEW_CERT"
+if [ "$OLD_CERT" != "$NEW_CERT" ]; then
+  echo "ERROR: release certificate does not match previous Quick Print APK" >&2
+  exit 1
+fi
+echo "SIGNING_CERT_MATCH=YES"
+
 APK_VERSIONED="QuickPrintOS-v${VERSION_NAME}.apk"
 APK_LATEST="QuickPrintOS-latest.apk"
 
@@ -119,7 +140,7 @@ cp "$APK_SOURCE" "$PUBLIC/$APK_VERSIONED"
 cp "$APK_SOURCE" "$PUBLIC/$APK_LATEST"
 
 SHA256="$(sha256sum "$PUBLIC/$APK_LATEST" | awk '{print $1}')"
-NOTES="${QP_RELEASE_NOTES:-Atualização do Quick Print OS.}"
+NOTES="${QP_RELEASE_NOTES:-Quick Print OS 1.5.0 — Connected Operations: entregas, motoboys, transportadoras, consultas públicas e integrações gratuitas/opcionais.}"
 
 python3 - "$PUBLIC/latest.json" "$VERSION_CODE" "$VERSION_NAME" "$SHA256" "$NOTES" <<'PY'
 import json, sys
@@ -132,7 +153,7 @@ payload = {
   "notes": notes
 }
 with open(path, "w", encoding="utf-8") as f:
-    json.dump(payload, f, ensure_ascii=False)
+    json.dump(payload, f, ensure_ascii=False, indent=2)
 PY
 
 cat > "$PUBLIC/index.html" <<HTML
@@ -140,25 +161,25 @@ cat > "$PUBLIC/index.html" <<HTML
 <html lang="pt-BR">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Quick Print OS — APK</title>
+<title>Quick Print OS 1.5.0</title>
 <style>
 body{font-family:system-ui,sans-serif;background:#f5f7fa;color:#142033;margin:0;padding:32px}
-main{max-width:620px;margin:auto;background:#fff;border-radius:24px;padding:30px;box-shadow:0 12px 40px #14203318}
+main{max-width:680px;margin:auto;background:#fff;border-radius:24px;padding:30px;box-shadow:0 12px 40px #14203318}
 .bar{height:5px;background:linear-gradient(90deg,#159fe8 0 25%,#eb2f7d 25% 50%,#ffd21a 50% 75%,#111 75%);border-radius:8px;margin:22px 0}
 a{display:inline-block;background:#159fe8;color:#fff;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:14px}
-small{color:#667085}
+small{color:#667085;word-break:break-all}
 </style>
 <main>
 <h1>Quick Print OS</h1>
-<p>v${VERSION_NAME} • build assinada</p>
+<p>v${VERSION_NAME} • release assinada</p>
 <div class="bar"></div>
-<p>Passou por testes unitários, Android Lint e compilação release.</p>
+<p>Testes unitários, Android Lint, compilação release e compatibilidade do certificado de atualização validados.</p>
 <p><a href="./${APK_VERSIONED}">Baixar APK ${VERSION_NAME}</a></p>
-<p><small>Atualizações futuras são detectadas dentro do próprio aplicativo.</small></p>
+<p><small>SHA-256: ${SHA256}</small></p>
 </main>
-</html>
 HTML
 
 echo "VERSION=$VERSION_NAME ($VERSION_CODE)"
 echo "SHA256=$SHA256"
+echo "CERT_SHA256=$NEW_CERT"
 ls -lh "$PUBLIC/$APK_VERSIONED"
