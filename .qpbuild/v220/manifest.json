@@ -1,0 +1,127 @@
+[
+  {
+    "path": "app/build.gradle.kts",
+    "file": "file_01.enc",
+    "nonce": "000000000000000000000001"
+  },
+  {
+    "path": "app/src/main/assets/fiscal/nfse/1.01/tiposSimples_v1.01.xsd",
+    "file": "file_02.enc",
+    "nonce": "000000000000000000000002"
+  },
+  {
+    "path": "app/src/main/assets/fiscal/nfse/1.01/xmldsig-core-schema.xsd",
+    "file": "file_03.enc",
+    "nonce": "000000000000000000000003"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/connected/network/ConnectedApiClients.kt",
+    "file": "file_04.enc",
+    "nonce": "000000000000000000000004"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/data/QuickPrintDatabase.kt",
+    "file": "file_05.enc",
+    "nonce": "000000000000000000000005"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/fiscal/core/BrazilianTaxId.kt",
+    "file": "file_06.enc",
+    "nonce": "000000000000000000000006"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/fiscal/core/FiscalDocumentCatalog.kt",
+    "file": "file_07.enc",
+    "nonce": "000000000000000000000007"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/fiscal/core/UniversalFiscalRouter.kt",
+    "file": "file_08.enc",
+    "nonce": "000000000000000000000008"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/fiscal/nfse/NfseFiscalRepository.kt",
+    "file": "file_09.enc",
+    "nonce": "000000000000000000000009"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/fiscal/nfse/danfse/DanfseV2Generator.kt",
+    "file": "file_10.enc",
+    "nonce": "00000000000000000000000a"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/fiscal/nfse/dps/DpsBuilder.kt",
+    "file": "file_11.enc",
+    "nonce": "00000000000000000000000b"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/fiscal/nfse/events/CancelEventBuilder.kt",
+    "file": "file_12.enc",
+    "nonce": "00000000000000000000000c"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/fiscal/storage/FiscalDao.kt",
+    "file": "file_13.enc",
+    "nonce": "00000000000000000000000d"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/fiscal/storage/FiscalEntities.kt",
+    "file": "file_14.enc",
+    "nonce": "00000000000000000000000e"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/ui/FiscalConfigurationPanel.kt",
+    "file": "file_15.enc",
+    "nonce": "00000000000000000000000f"
+  },
+  {
+    "path": "app/src/test/java/br/com/quickprint/os/fiscal/core/BrazilianTaxIdTest.kt",
+    "file": "file_16.enc",
+    "nonce": "000000000000000000000010"
+  },
+  {
+    "path": "app/src/test/java/br/com/quickprint/os/fiscal/nfse/NfseAlphanumericRegressionTest.kt",
+    "file": "file_17.enc",
+    "nonce": "000000000000000000000011"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/studio/SmartSheet.kt",
+    "file": "file_18.enc",
+    "nonce": "000000000000000000000012"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/studio/MagicPreflight.kt",
+    "file": "file_19.enc",
+    "nonce": "000000000000000000000013"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/intelligence/QuickPrintIntelligence.kt",
+    "file": "file_20.enc",
+    "nonce": "000000000000000000000014"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/intelligence/IntelligenceCenterScreen.kt",
+    "file": "file_21.enc",
+    "nonce": "000000000000000000000015"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/ui/OperationsCenterScreen.kt",
+    "file": "file_22.enc",
+    "nonce": "000000000000000000000016"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/ui/ProductionScreen.kt",
+    "file": "file_23.enc",
+    "nonce": "000000000000000000000017"
+  },
+  {
+    "path": "app/src/test/java/br/com/quickprint/os/intelligence/QuickPrintIntelligenceEngineTest.kt",
+    "file": "file_24.enc",
+    "nonce": "000000000000000000000018"
+  },
+  {
+    "path": "app/src/test/java/br/com/quickprint/os/studio/MagicPreflightMemoryTest.kt",
+    "file": "file_25.enc",
+    "nonce": "000000000000000000000019"
+  }
+]
