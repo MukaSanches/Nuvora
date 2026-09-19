@@ -68,5 +68,10 @@
     "path": "app/src/main/java/br/com/quickprint/os/studio/QuickDropServer.kt",
     "file": "file_14.enc",
     "nonce": "00000000000000000000000e"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/connected/network/ConnectedApiClients.kt",
+    "file": "file_15.enc",
+    "nonce": "00000000000000000000000f"
   }
 ]
