@@ -99,14 +99,20 @@ python3 "$RELAY/v200/decrypt_overlay.py" "$RELAY/v301audit" "$WORK" "$QP_BUILD_K
 # Apply Quick Print OS 3.1.0 MIS production overlay.
 python3 "$RELAY/v200/decrypt_overlay.py" "$RELAY/v310mis" "$WORK" "$QP_BUILD_KEY_V310_MIS"
 
+# Apply Quick Print OS 3.1.1 Quick Drop / Quick Proof network hotfix.
+python3 "$RELAY/v200/decrypt_overlay.py" "$RELAY/v311quickdrop" "$WORK" "$QP_BUILD_KEY_V311_QUICKDROP"
+
 # Fail closed before Gradle: verify the fiscal contracts expected by the 20260727 bundle.
 grep -Fq '<xs:pattern value="[0-9A-Z]{14}"/>' "$WORK/app/src/main/assets/fiscal/nfse/1.01/tiposSimples_v1.01.xsd"
 grep -Fq 'DPS[0-9]{7}(1[0-9]{14}|2[0-9A-Z]{14})[0-9]{20}' "$WORK/app/src/main/assets/fiscal/nfse/1.01/tiposSimples_v1.01.xsd"
 grep -Fq 'PRE[0-9]{8}(1[0-9]{14}|2[0-9A-Z]{14})[0-9]{33}' "$WORK/app/src/main/assets/fiscal/nfse/1.01/tiposSimples_v1.01.xsd"
-grep -Fq 'versionName = "3.1.0"' "$WORK/app/build.gradle.kts"
-grep -Fq 'versionCode = 17' "$WORK/app/build.gradle.kts"
+grep -Fq 'versionName = "3.1.1"' "$WORK/app/build.gradle.kts"
+grep -Fq 'versionCode = 18' "$WORK/app/build.gradle.kts"
 test -s "$WORK/app/src/main/java/br/com/quickprint/os/os3/ui/PrintOs3Screen.kt"
 grep -Fq 'version = 11' "$WORK/app/src/main/java/br/com/quickprint/os/data/QuickPrintDatabase.kt"
+grep -Fq 'android.permission.NEARBY_WIFI_DEVICES' "$WORK/app/src/main/AndroidManifest.xml"
+grep -Fq 'selfTest(candidate.address, socket.localPort)' "$WORK/app/src/main/java/br/com/quickprint/os/studio/QuickDropServer.kt"
+grep -Fq 'return@runCatching current' "$WORK/app/src/main/java/br/com/quickprint/os/studio/QuickDropServer.kt"
 
 mkdir -p "$WORK/app/src/main/res/drawable-nodpi"
 cp "$RELAY/assets/quick_print_logo_official.webp" "$WORK/app/src/main/res/drawable-nodpi/quick_print_logo_official.webp"
@@ -161,8 +167,8 @@ cd "$WORK"
 
 VERSION_CODE="$(sed -n 's/.*versionCode = \([0-9][0-9]*\).*/\1/p' app/build.gradle.kts | head -1)"
 VERSION_NAME="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)"
-test "$VERSION_CODE" = "17"
-test "$VERSION_NAME" = "3.1.0"
+test "$VERSION_CODE" = "18"
+test "$VERSION_NAME" = "3.1.1"
 
 echo "=== UNIT TESTS ==="
 gradle --no-daemon testDebugUnitTest
@@ -187,7 +193,7 @@ APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
 echo "=== APK IDENTITY ==="
 BADGING="$("$AAPT" dump badging "$APK_SOURCE")"
 printf '%s\n' "$BADGING" | sed -n '1,8p'
-printf '%s\n' "$BADGING" | grep -Fq "package: name='br.com.quickprint.os' versionCode='17' versionName='3.1.0'"
+printf '%s\n' "$BADGING" | grep -Fq "package: name='br.com.quickprint.os' versionCode='18' versionName='3.1.1'"
 
 echo "=== SIGNATURE VALIDATION ==="
 "$APKSIGNER" verify --verbose --print-certs "$APK_SOURCE"
@@ -215,7 +221,7 @@ cp "$APK_SOURCE" "$PUBLIC/$APK_VERSIONED"
 cp "$APK_SOURCE" "$PUBLIC/$APK_LATEST"
 
 SHA256="$(sha256sum "$PUBLIC/$APK_LATEST" | awk '{print $1}')"
-NOTES="${QP_RELEASE_NOTES:-Quick Print OS 3.1.0 — MIS Production: Kanban persistente, capacidade por máquina, automações com aprovação, Web-to-Print local, cotações de fornecedores, multiunidade e tickets CIP4 XJDF/JDF. Mantém integralmente as capacidades 3.0.1. Integrações externas, hardware e documentos fiscais dependem de configuração e validação real.}"
+NOTES="${QP_RELEASE_NOTES:-Quick Print OS 3.1.1 — correção essencial do Quick Drop e Quick Proof: seleção robusta de IP LAN, validação do endereço antes do QR, sessões estáveis, permissões de rede local e QR dedicado para provas. Mantém integralmente os recursos da 3.1.0.}"
 
 python3 - "$PUBLIC/latest.json" "$VERSION_CODE" "$VERSION_NAME" "$SHA256" "$NOTES" <<'PY'
 import json, sys
@@ -236,7 +242,7 @@ cat > "$PUBLIC/index.html" <<HTML
 <html lang="pt-BR">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Quick Print OS 3.1.0</title>
+<title>Quick Print OS 3.1.1</title>
 <style>
 body{font-family:system-ui,sans-serif;background:#f5f7fa;color:#142033;margin:0;padding:32px}
 main{max-width:680px;margin:auto;background:#fff;border-radius:24px;padding:30px;box-shadow:0 12px 40px #14203318}
