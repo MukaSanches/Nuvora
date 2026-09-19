@@ -63,5 +63,10 @@
     "path": "app/src/main/java/br/com/quickprint/os/fiscal/storage/FiscalDao.kt",
     "file": "file_13.enc",
     "nonce": "00000000000000000000000d"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/studio/QuickDropServer.kt",
+    "file": "file_14.enc",
+    "nonce": "00000000000000000000000e"
   }
 ]
