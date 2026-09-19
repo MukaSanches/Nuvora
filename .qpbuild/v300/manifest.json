@@ -53,5 +53,15 @@
     "path": "app/src/test/java/br/com/quickprint/os/os3/PrintOs3EnginesTest.kt",
     "file": "file_11.enc",
     "nonce": "00000000000000000000000b"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/fiscal/storage/FiscalEntities.kt",
+    "file": "file_12.enc",
+    "nonce": "00000000000000000000000c"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/fiscal/storage/FiscalDao.kt",
+    "file": "file_13.enc",
+    "nonce": "00000000000000000000000d"
   }
 ]
