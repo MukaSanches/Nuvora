@@ -48,5 +48,10 @@
     "path": "app/src/test/java/br/com/quickprint/os/data/QuickPrintRepositoryTest.kt",
     "file": "file_10.enc",
     "nonce": "00000000000000000000000a"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/worker/BackupWorker.kt",
+    "file": "file_11.enc",
+    "nonce": "00000000000000000000000b"
   }
 ]
