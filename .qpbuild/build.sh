@@ -1,4 +1,4 @@
-# FINAL_V300_COMPOSED_MAX_EVOLUTION_BUILD_TRIGGER
+# FINAL_V300_COMPOSED_RELEASE_BUILD_TRIGGER
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -90,10 +90,6 @@ python3 "$RELAY/v200/decrypt_overlay.py" "$RELAY/v220" "$WORK" "$QP_BUILD_KEY_V2
 # Apply the existing Quick Print OS 3.0.0 Print Shop Operating System overlay,
 # including any compile hotfixes added to the v300 manifest.
 python3 "$RELAY/v200/decrypt_overlay.py" "$RELAY/v300" "$WORK" "$QP_BUILD_KEY_V300"
-
-# Final composition restores the merged Operations Center and canonical Room 10
-# sources while keeping the v2.2 memory/intelligence files that v300 does not replace.
-python3 "$RELAY/v200/decrypt_overlay.py" "$RELAY/v301" "$WORK" "$QP_BUILD_KEY_V301"
 
 # Fail closed before Gradle: verify the fiscal contracts expected by the 20260727 bundle.
 grep -Fq '<xs:pattern value="[0-9A-Z]{14}"/>' "$WORK/app/src/main/assets/fiscal/nfse/1.01/tiposSimples_v1.01.xsd"
