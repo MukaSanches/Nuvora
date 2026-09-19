@@ -1,0 +1,52 @@
+[
+  {
+    "path": "app/build.gradle.kts",
+    "file": "file_01.enc",
+    "nonce": "000000000000000000000001"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/data/PendingDatabaseRestore.kt",
+    "file": "file_02.enc",
+    "nonce": "000000000000000000000002"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/integration/DataPortabilityManager.kt",
+    "file": "file_03.enc",
+    "nonce": "000000000000000000000003"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/data/QuickPrintDatabase.kt",
+    "file": "file_04.enc",
+    "nonce": "000000000000000000000004"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/data/QuickPrintDao.kt",
+    "file": "file_05.enc",
+    "nonce": "000000000000000000000005"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/data/QuickPrintRepository.kt",
+    "file": "file_06.enc",
+    "nonce": "000000000000000000000006"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/QuickPrintViewModel.kt",
+    "file": "file_07.enc",
+    "nonce": "000000000000000000000007"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/ui/OrdersScreen.kt",
+    "file": "file_08.enc",
+    "nonce": "000000000000000000000008"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/crm/data/CrmDao.kt",
+    "file": "file_09.enc",
+    "nonce": "000000000000000000000009"
+  },
+  {
+    "path": "app/src/test/java/br/com/quickprint/os/data/QuickPrintRepositoryTest.kt",
+    "file": "file_10.enc",
+    "nonce": "00000000000000000000000a"
+  }
+]
