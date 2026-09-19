@@ -1,4 +1,4 @@
-# FINAL_V210_FISCAL_BUILD_TRIGGER
+# FINAL_V220_EVOLUTION_BUILD_TRIGGER
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -81,16 +81,20 @@ python3 "$RELAY/v180/decrypt_overlay.py" "$RELAY/v180" "$WORK" "$QP_BUILD_KEY_V1
 # Apply Quick Print OS 2.0.0 Autonomous Print Studio over the validated 1.8 base.
 python3 "$RELAY/v200/decrypt_overlay.py" "$RELAY/v200" "$WORK" "$QP_BUILD_KEY_V200"
 
-# Apply Quick Print OS 2.1.0 Fiscal Foundation over the validated 2.0 base.
+# Apply Quick Print OS 2.2.0 Fiscal Foundation over the validated 2.0 base.
 # Overlay remains encrypted at rest; the v2.1 key exists only in Render secrets.
 python3 "$RELAY/v200/decrypt_overlay.py" "$RELAY/v210" "$WORK" "$QP_BUILD_KEY_V210"
+
+# Apply Quick Print OS 2.2.0 Production Intelligence + final fiscal foundation.
+# The v2.2 overlay overwrites only versioned/additive files and is encrypted at rest.
+python3 "$RELAY/v200/decrypt_overlay.py" "$RELAY/v220" "$WORK" "$QP_BUILD_KEY_V220"
 
 # Fail closed before Gradle: verify the fiscal contracts expected by the 20260727 bundle.
 grep -Fq '<xs:pattern value="[0-9A-Z]{14}"/>' "$WORK/app/src/main/assets/fiscal/nfse/1.01/tiposSimples_v1.01.xsd"
 grep -Fq 'DPS[0-9]{7}(1[0-9]{14}|2[0-9A-Z]{14})[0-9]{20}' "$WORK/app/src/main/assets/fiscal/nfse/1.01/tiposSimples_v1.01.xsd"
 grep -Fq 'PRE[0-9]{8}(1[0-9]{14}|2[0-9A-Z]{14})[0-9]{33}' "$WORK/app/src/main/assets/fiscal/nfse/1.01/tiposSimples_v1.01.xsd"
-grep -Fq 'versionName = "2.1.0"' "$WORK/app/build.gradle.kts"
-grep -Fq 'versionCode = 13' "$WORK/app/build.gradle.kts"
+grep -Fq 'versionName = "2.2.0"' "$WORK/app/build.gradle.kts"
+grep -Fq 'versionCode = 14' "$WORK/app/build.gradle.kts"
 
 mkdir -p "$WORK/app/src/main/res/drawable-nodpi"
 cp "$RELAY/assets/quick_print_logo_official.webp" "$WORK/app/src/main/res/drawable-nodpi/quick_print_logo_official.webp"
@@ -145,8 +149,8 @@ cd "$WORK"
 
 VERSION_CODE="$(sed -n 's/.*versionCode = \([0-9][0-9]*\).*/\1/p' app/build.gradle.kts | head -1)"
 VERSION_NAME="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)"
-test "$VERSION_CODE" = "13"
-test "$VERSION_NAME" = "2.1.0"
+test "$VERSION_CODE" = "14"
+test "$VERSION_NAME" = "2.2.0"
 
 echo "=== UNIT TESTS ==="
 gradle --no-daemon testDebugUnitTest
@@ -159,8 +163,8 @@ gradle --no-daemon assembleRelease
 gradle --no-daemon validateSigningRelease
 
 echo "=== ROOM SCHEMA ==="
-test -s "app/schemas/br.com.quickprint.os.data.QuickPrintDatabase/8.json"
-grep -Fq '"version": 8' "app/schemas/br.com.quickprint.os.data.QuickPrintDatabase/8.json"
+test -s "app/schemas/br.com.quickprint.os.data.QuickPrintDatabase/9.json"
+grep -Fq '"version": 9' "app/schemas/br.com.quickprint.os.data.QuickPrintDatabase/9.json"
 
 APK_SOURCE="app/build/outputs/apk/release/app-release.apk"
 test -s "$APK_SOURCE"
@@ -199,7 +203,7 @@ cp "$APK_SOURCE" "$PUBLIC/$APK_VERSIONED"
 cp "$APK_SOURCE" "$PUBLIC/$APK_LATEST"
 
 SHA256="$(sha256sum "$PUBLIC/$APK_LATEST" | awk '{print $1}')"
-NOTES="${QP_RELEASE_NOTES:-Quick Print OS 2.1.0 — Fiscal Foundation 2026: CNPJ alfanumérico, NFS-e 1.01 com XSD 20260727, correções de DPS/eventos, cadastro fiscal assistido e Central Fiscal. NF-e/NFC-e permanecem fail-closed até homologação real.}"
+NOTES="${QP_RELEASE_NOTES:-Quick Print OS 2.2.0 — Production Intelligence: imposição protegida contra OOM, pré-flight de imagens grandes, fila inteligente, saúde operacional, Room 9 e fundação fiscal multiestabelecimento. Documentos fiscais sem homologação real permanecem fail-closed.}"
 
 python3 - "$PUBLIC/latest.json" "$VERSION_CODE" "$VERSION_NAME" "$SHA256" "$NOTES" <<'PY'
 import json, sys
@@ -220,7 +224,7 @@ cat > "$PUBLIC/index.html" <<HTML
 <html lang="pt-BR">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Quick Print OS 2.1.0</title>
+<title>Quick Print OS 2.2.0</title>
 <style>
 body{font-family:system-ui,sans-serif;background:#f5f7fa;color:#142033;margin:0;padding:32px}
 main{max-width:680px;margin:auto;background:#fff;border-radius:24px;padding:30px;box-shadow:0 12px 40px #14203318}
