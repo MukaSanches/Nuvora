@@ -103,5 +103,10 @@
     "path": "app/src/test/java/br/com/quickprint/os/studio/StudioAiParserTest.kt",
     "file": "file_21.enc",
     "nonce": "000000000000000000000015"
+  },
+  {
+    "path": "app/src/main/java/br/com/quickprint/os/ui/MoreScreen.kt",
+    "file": "file_22.enc",
+    "nonce": "000000000000000000000016"
   }
 ]
