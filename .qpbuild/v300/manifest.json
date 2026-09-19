@@ -73,5 +73,10 @@
     "path": "app/src/main/java/br/com/quickprint/os/connected/network/ConnectedApiClients.kt",
     "file": "file_15.enc",
     "nonce": "00000000000000000000000f"
+  },
+  {
+    "path": "app/src/test/java/br/com/quickprint/os/fiscal/nfse/NfseIdentityContractTest.kt",
+    "file": "file_16.enc",
+    "nonce": "000000000000000000000010"
   }
 ]
