@@ -156,8 +156,6 @@ VERSION_NAME="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.k
 test "$VERSION_CODE" = "15"
 test "$VERSION_NAME" = "3.0.0"
 
-echo "=== NfseIdentityContractTest.kt ==="
-nl -ba app/src/test/java/br/com/quickprint/os/fiscal/nfse/NfseIdentityContractTest.kt || true
 echo "=== UNIT TESTS ==="
 gradle --no-daemon testDebugUnitTest
 
