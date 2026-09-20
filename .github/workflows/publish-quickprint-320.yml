@@ -1,0 +1,51 @@
+name: Publish Quick Print OS 3.2.0 Release
+
+on:
+  push:
+    branches: [ "quickprint-build-relay" ]
+    paths:
+      - ".github/workflows/publish-quickprint-320.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download validated signed artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: QuickPrintOS-v3.2.0-signed
+          path: release
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 35540200393
+
+      - name: Verify downloaded release payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s release/QuickPrintOS-v3.2.0-signed.apk
+          test -s release/apk-sha256.txt
+          test -s release/apk-signature.txt
+          test -s release/apk-validation.txt
+          grep -Fq "52d515963261d158f6cd300e4283dcc17d29ffa9805e37af016e12a6bd5faa12" release/apk-sha256.txt
+          grep -Fq "29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71" release/apk-signature.txt
+
+      - name: Publish permanent GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="quickprint-os-v3.2.0"
+          TITLE="Quick Print OS 3.2.0 — Signed Release"
+          NOTES=$'Quick Print OS 3.2.0\n\nValidated signed release.\n\nPackage: br.com.quickprint.os\nVersion: 3.2.0 (21)\nAPK SHA-256: 52d515963261d158f6cd300e4283dcc17d29ffa9805e37af016e12a6bd5faa12\nSigning certificate SHA-256: 29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71\n\nUnit tests, release lint and signed release build completed successfully.'
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/QuickPrintOS-v3.2.0-signed.apk release/apk-sha256.txt release/apk-signature.txt release/apk-validation.txt --clobber
+          else
+            gh release create "$TAG"               release/QuickPrintOS-v3.2.0-signed.apk               release/apk-sha256.txt               release/apk-signature.txt               release/apk-validation.txt               --target quickprint-build-relay               --title "$TITLE"               --notes "$NOTES"
+          fi
