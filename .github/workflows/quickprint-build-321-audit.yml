@@ -121,7 +121,35 @@ jobs:
           arch: x86_64
           profile: pixel_4
           disable-animations: true
-          script: cd /tmp/qp321 && gradle --no-daemon --stacktrace connectedDebugAndroidTest
+          script: |
+            set -euo pipefail
+            cd /tmp/qp321
+            gradle --no-daemon --stacktrace assembleDebug assembleDebugAndroidTest
+            ADB="$ANDROID_HOME/platform-tools/adb"
+            AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+            RELEASE_APK="app/build/outputs/apk/release/app-release.apk"
+            DEBUG_APK="app/build/outputs/apk/debug/app-debug.apk"
+            TEST_APK="app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+            test -s "$RELEASE_APK"
+            test -s "$DEBUG_APK"
+            test -s "$TEST_APK"
+            "$ADB" wait-for-device
+            test "$("$ADB" shell getprop sys.boot_completed | tr -d '\r')" = "1"
+            timeout 600 "$ADB" install --no-streaming -r "$RELEASE_APK" | tee /tmp/release-install.txt
+            grep -Fq "Success" /tmp/release-install.txt
+            "$ADB" shell am start -W -n br.com.quickprint.os/.MainActivity | tee /tmp/release-start.txt
+            grep -Fq "Status: ok" /tmp/release-start.txt
+            "$ADB" shell dumpsys package br.com.quickprint.os | grep -Fq "versionName=3.2.1"
+            "$ADB" shell am force-stop br.com.quickprint.os
+            "$ADB" uninstall br.com.quickprint.os | grep -Fq "Success"
+            timeout 600 "$ADB" install --no-streaming -r -g "$DEBUG_APK" | tee /tmp/debug-install.txt
+            grep -Fq "Success" /tmp/debug-install.txt
+            timeout 600 "$ADB" install --no-streaming -r -g "$TEST_APK" | tee /tmp/test-install.txt
+            grep -Fq "Success" /tmp/test-install.txt
+            TEST_PACKAGE="$("$AAPT" dump badging "$TEST_APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -1)"
+            test -n "$TEST_PACKAGE"
+            timeout 600 "$ADB" shell am instrument -w -r "$TEST_PACKAGE/androidx.test.runner.AndroidJUnitRunner" | tee /tmp/instrumentation.txt
+            grep -Eq "OK \([1-9][0-9]* tests?\)" /tmp/instrumentation.txt
 
       - name: Verify APK identity, archive and signature
         shell: bash
@@ -152,7 +180,9 @@ jobs:
             echo "jvmDebugTests=PASS"
             echo "jvmReleaseTests=PASS"
             echo "lintRelease=PASS"
-            echo "connectedDebugAndroidTest=PASS"
+            echo "android35ReleaseInstall=PASS"
+            echo "android35ActivityLaunch=PASS"
+            echo "android35Instrumentation=PASS"
             echo "$BADGING"
           } > apk-validation.txt
 
