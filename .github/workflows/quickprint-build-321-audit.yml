@@ -1,0 +1,159 @@
+name: Quick Print OS 3.2.1 Audited Signed Release
+
+on:
+  push:
+    branches: [ "quickprint-build-relay" ]
+    paths:
+      - ".github/workflows/quickprint-build-321-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  audit-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PAYLOAD_B64_URL: "https://sdmntprbrazilsouth.oaiusercontent.com/files/00000000-7cec-820e-8844-ae266782579f/raw?se=2026-09-20T22%3A43%3A00Z&sp=r&sv=2026-02-06&sr=b&scid=81bd0ee4-9f2b-59d0-b6fe-b18427c43ba5&skoid=33096a49-a96b-4506-9fc4-04a7517f8175&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-20T21%3A57%3A34Z&ske=2026-09-21T21%3A57%3A34Z&sks=b&skv=2026-02-06&sig=hKgrhbmzt5myehNYT3dyXVHWAjAuKSH6O4FGPGWf1t0%3D"
+      KEY_RELAY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc4OTk0NTczOSwicm9sZSI6InB1YmxpYyJ9.a2e9895a25fc301ca786b06bd3fa0731106f35329a6a05cf8569b135837d2508"
+      EXPECTED_PAYLOAD_SHA256: "a1d5d8ff19c0e08b0f6db132dbec55ac2f8ef6b569b0139eccd656ba74931cce"
+      EXPECTED_CERT_SHA256: "29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71"
+      APP_DIR: "/tmp/qp321"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download encrypted audit payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 5 --retry-delay 1 "$PAYLOAD_B64_URL" -o /tmp/qp321.enc.b64
+          base64 --decode /tmp/qp321.enc.b64 > /tmp/qp321.enc
+          rm -f /tmp/qp321.enc.b64
+          echo "$EXPECTED_PAYLOAD_SHA256  /tmp/qp321.enc" | sha256sum -c -
+
+      - name: Get decryption passphrase via GitHub OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          OIDC_JSON="$(curl -L --fail --retry 3 -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=quickprint-build")"
+          OIDC_TOKEN="$(printf '%s' "$OIDC_JSON" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          KEY_JSON="$(curl -L --fail --retry 3 -X POST -H "Authorization: Bearer $OIDC_TOKEN" "$KEY_RELAY_URL")"
+          printf '%s' "$KEY_JSON" | python -c 'import json,sys; print(json.load(sys.stdin)["passphrase"])' > /tmp/qp321.pass
+          chmod 600 /tmp/qp321.pass
+          test -s /tmp/qp321.pass
+
+      - name: Decrypt audited source and signing material
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$APP_DIR"
+          mkdir -p "$APP_DIR"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000             -in /tmp/qp321.enc             -out /tmp/qp321.zip             -pass file:/tmp/qp321.pass
+          unzip -q /tmp/qp321.zip -d "$APP_DIR"
+          rm -f /tmp/qp321.enc /tmp/qp321.pass /tmp/qp321.zip
+          test -s "$APP_DIR/app/build.gradle.kts"
+          test -s "$APP_DIR/quickprint-release.p12"
+          grep -Fq 'versionCode = 22' "$APP_DIR/app/build.gradle.kts"
+          grep -Fq 'versionName = "3.2.1"' "$APP_DIR/app/build.gradle.kts"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android SDK 35 build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0" "emulator" "system-images;android-35;google_apis;x86_64"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Configure release signing
+        shell: bash
+        working-directory: /tmp/qp321
+        run: |
+          set -euo pipefail
+          set -a
+          source signing.env
+          set +a
+          echo "QP_KEYSTORE_PATH=$PWD/quickprint-release.p12" >> "$GITHUB_ENV"
+          echo "QP_KEYSTORE_PASSWORD=$QP_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "QP_KEY_ALIAS=$QP_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "QP_KEY_PASSWORD=$QP_KEY_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: JVM regression suite
+        working-directory: /tmp/qp321
+        run: gradle --no-daemon testDebugUnitTest
+
+      - name: Android lint release
+        working-directory: /tmp/qp321
+        run: gradle --no-daemon lintRelease
+
+      - name: Build and validate signed release
+        working-directory: /tmp/qp321
+        run: gradle --no-daemon assembleRelease validateSigningRelease
+
+      - name: Android 35 emulator smoke and instrumentation
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_4
+          disable-animations: true
+          script: cd /tmp/qp321 && gradle --no-daemon connectedDebugAndroidTest
+
+      - name: Verify APK identity, archive and signature
+        shell: bash
+        working-directory: /tmp/qp321
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          BADGING="$("$AAPT" dump badging "$APK" | head -n 1)"
+          echo "$BADGING"
+          echo "$BADGING" | grep -Fq "name='br.com.quickprint.os'"
+          echo "$BADGING" | grep -Fq "versionCode='22'"
+          echo "$BADGING" | grep -Fq "versionName='3.2.1'"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee apk-signature.txt
+          CERT="$("$APKSIGNER" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | tr '[:upper:]' '[:lower:]')"
+          test "$CERT" = "$EXPECTED_CERT_SHA256"
+          cp "$APK" QuickPrintOS-v3.2.1-audited-signed.apk
+          sha256sum QuickPrintOS-v3.2.1-audited-signed.apk | tee apk-sha256.txt
+          {
+            echo "package=br.com.quickprint.os"
+            echo "versionName=3.2.1"
+            echo "versionCode=22"
+            echo "certificateSha256=$CERT"
+            echo "jvmTests=PASS"
+            echo "lintRelease=PASS"
+            echo "connectedDebugAndroidTest=PASS"
+            echo "$BADGING"
+          } > apk-validation.txt
+
+      - name: Upload audited signed APK and evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuickPrintOS-v3.2.1-audited-signed
+          path: |
+            /tmp/qp321/QuickPrintOS-v3.2.1-audited-signed.apk
+            /tmp/qp321/apk-sha256.txt
+            /tmp/qp321/apk-signature.txt
+            /tmp/qp321/apk-validation.txt
+            /tmp/qp321/app/build/reports/tests/testDebugUnitTest/
+            /tmp/qp321/app/build/reports/lint-results-release.html
+            /tmp/qp321/app/build/reports/androidTests/connected/
+          if-no-files-found: error
+          retention-days: 7
