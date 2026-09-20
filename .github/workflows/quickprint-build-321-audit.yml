@@ -101,9 +101,23 @@ jobs:
           echo "QP_KEY_ALIAS=$QP_KEY_ALIAS" >> "$GITHUB_ENV"
           echo "QP_KEY_PASSWORD=$QP_KEY_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: JVM regression suites
+      - name: JVM debug regression suite
+        shell: bash
         working-directory: /tmp/qp321
-        run: gradle --no-daemon --stacktrace testDebugUnitTest testReleaseUnitTest
+        run: |
+          set -euo pipefail
+          rm -rf app/schemas
+          mkdir -p app/schemas
+          gradle --no-daemon --stacktrace testDebugUnitTest
+          find app/schemas -type f -name '*.json' -print -exec python -m json.tool {} /dev/null \;
+
+      - name: JVM release regression suite
+        shell: bash
+        working-directory: /tmp/qp321
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --stacktrace testReleaseUnitTest
+          find app/schemas -type f -name '*.json' -print -exec python -m json.tool {} /dev/null \;
 
       - name: Android lint release
         working-directory: /tmp/qp321
