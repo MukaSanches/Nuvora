@@ -1,0 +1,90 @@
+name: Quick Print OS 3.2.1 Live Integration Smoke
+
+on:
+  push:
+    branches: [ "quickprint-build-relay" ]
+    paths:
+      - ".github/workflows/quickprint-live-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Verify public integrations used by Quick Print OS
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, urllib.request, urllib.error
+
+          def get_json(name, url, validator):
+              req = urllib.request.Request(url, headers={"User-Agent":"QuickPrintOS/3.2.1 audit"})
+              with urllib.request.urlopen(req, timeout=25) as r:
+                  body = r.read()
+                  if not (200 <= r.status < 300):
+                      raise RuntimeError(f"{name}: HTTP {r.status}")
+                  data = json.loads(body)
+                  validator(data)
+                  print(f"PASS {name}: HTTP {r.status}, {len(body)} bytes")
+
+          get_json(
+              "BrasilAPI CEP",
+              "https://brasilapi.com.br/api/cep/v2/08683000",
+              lambda d: (_ for _ in ()).throw(AssertionError("CEP inválido")) if str(d.get("cep","")).replace("-","") != "08683000" else None
+          )
+          get_json(
+              "BrasilAPI CNPJ",
+              "https://brasilapi.com.br/api/cnpj/v1/00000000000191",
+              lambda d: (_ for _ in ()).throw(AssertionError("CNPJ ausente")) if not d.get("cnpj") else None
+          )
+          get_json(
+              "IBGE estados",
+              "https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome",
+              lambda d: (_ for _ in ()).throw(AssertionError("SP ausente")) if not any(x.get("sigla")=="SP" for x in d) else None
+          )
+          get_json(
+              "IBGE municípios SP",
+              "https://servicodados.ibge.gov.br/api/v1/localidades/estados/SP/municipios?orderBy=nome",
+              lambda d: (_ for _ in ()).throw(AssertionError("Suzano ausente")) if not any(x.get("nome")=="Suzano" for x in d) else None
+          )
+          get_json(
+              "PNCP propostas",
+              "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?dataFinal=20260920&pagina=1&tamanhoPagina=10",
+              lambda d: None if isinstance(d,(dict,list)) else (_ for _ in ()).throw(AssertionError("JSON PNCP inválido"))
+          )
+          get_json(
+              "Compras.gov preços",
+              "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/3_consultarServico?pagina=1&tamanhoPagina=10&codigoItemCatalogo=8599",
+              lambda d: None if isinstance(d,(dict,list)) else (_ for _ in ()).throw(AssertionError("JSON Compras.gov inválido"))
+          )
+          PY
+
+      - name: Verify fiscal and shipping hosts are reachable over TLS
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import urllib.request, urllib.error
+          urls = {
+              "NFS-e produção restrita": "https://sefin.producaorestrita.nfse.gov.br/API/SefinNacional",
+              "NFS-e produção": "https://sefin.nfse.gov.br/SefinNacional",
+              "NFS-e parametrização": "https://adn.nfse.gov.br/parametrizacao",
+              "Melhor Envio sandbox": "https://sandbox.melhorenvio.com.br",
+              "Melhor Envio produção": "https://melhorenvio.com.br",
+          }
+          for name,url in urls.items():
+              req=urllib.request.Request(url,method="HEAD",headers={"User-Agent":"QuickPrintOS/3.2.1 audit"})
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as r:
+                      print(f"PASS {name}: HTTP {r.status}")
+              except urllib.error.HTTPError as e:
+                  if 400 <= e.code < 500:
+                      print(f"PASS {name}: TLS/host reachable, HTTP {e.code}")
+                  else:
+                      raise
+          PY
