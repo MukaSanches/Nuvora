@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 70
     env:
-      KEY_RELAY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc4OTk0NTgyMiwicm9sZSI6InB1YmxpYyJ9.e93772e24fa36bd0abfcfa11135318e88d9f1544b619604602364d2366a00361"
+      KEY_RELAY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc4OTk0OTQ4Niwicm9sZSI6InB1YmxpYyJ9.feeedf420760235fe37f31c38621e3c04f16f73ae0b839a13fd1d04888b6d934"
       EXPECTED_PAYLOAD_SHA256: "a5c79b61ac957df471634f6ca39799dc75a1aff6e2804d6aa709ce1236ebc8ad"
       EXPECTED_CERT_SHA256: "29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71"
       APP_DIR: "/tmp/qp321"
