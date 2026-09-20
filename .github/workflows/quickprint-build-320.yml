@@ -16,8 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      PAYLOAD_B64_URL: "https://sdmntprbrazilsouth.oaiusercontent.com/files/00000000-2c50-820e-b8b9-6ed66c702caf/raw?se=2026-09-20T21%3A59%3A57Z&sp=r&sv=2026-02-06&sr=b&scid=0e517c40-439c-5e0a-8866-624e518b479e&skoid=33096a49-a96b-4506-9fc4-04a7517f8175&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-20T12%3A47%3A50Z&ske=2026-09-21T12%3A47%3A50Z&sks=b&skv=2026-02-06&sig=i1MLlP4g3Yppad9UqRKwIw4yWLrlbY8Yr%2BR/gv7/r34%3D"
-      KEY_RELAY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc4OTk0Mjg3NSwicm9sZSI6InB1YmxpYyJ9.73ea2cbc4e525ada6cb86bcc36088db86eefa8aa1d6bcfe5b98fcce393a406ff"
+      PAYLOAD_B64_URL: "https://sdmntprbrazilsouth.oaiusercontent.com/files/00000000-edc4-820e-9d32-bf4e6e8b47c1/raw?se=2026-09-20T22%3A02%3A16Z&sp=r&sv=2026-02-06&sr=b&scid=a45fa318-71f6-5724-ac34-344e1ea8c546&skoid=33096a49-a96b-4506-9fc4-04a7517f8175&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-20T04%3A11%3A36Z&ske=2026-09-21T04%3A11%3A36Z&sks=b&skv=2026-02-06&sig=5rjmUcXuKeWD/hoWvIYUOSjrJd5RtiXHUl5Diet2Ysg%3D"
+      KEY_RELAY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc4OTk0MzIyNCwicm9sZSI6InB1YmxpYyJ9.03efc304304a931124d62bd70b8194f39af86aac4e8537b571cff2e1f267fee5"
       EXPECTED_PAYLOAD_SHA256: "3b3b1513095f990320972f1eb014f1d7e46f7e717c56f47e5b4846c034fadd2f"
       EXPECTED_CERT_SHA256: "29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71"
 
