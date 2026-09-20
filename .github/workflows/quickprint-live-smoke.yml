@@ -19,52 +19,49 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          fetch_json() {
+            local name="$1"
+            local url="$2"
+            local out="$3"
+            curl --compressed -fsSL --retry 3 --connect-timeout 15 --max-time 40 \
+              -H 'User-Agent: QuickPrintOS/3.2.1 audit' \
+              -H 'Accept: application/json' \
+              "$url" -o "$out"
+            python -m json.tool "$out" >/dev/null
+            echo "PASS $name: $(wc -c < "$out") bytes"
+          }
+
+          fetch_json "BrasilAPI CEP" "https://brasilapi.com.br/api/cep/v2/08683000" /tmp/cep.json
           python - <<'PY'
-          import json, gzip, urllib.request, urllib.error
-
-          def get_json(name, url, validator):
-              req = urllib.request.Request(url, headers={"User-Agent":"QuickPrintOS/3.2.1 audit","Accept-Encoding":"identity"})
-              with urllib.request.urlopen(req, timeout=25) as r:
-                  body = r.read()
-                  if body[:2] == b"\\x1f\\x8b":
-                      body = gzip.decompress(body)
-                  if not (200 <= r.status < 300):
-                      raise RuntimeError(f"{name}: HTTP {r.status}")
-                  data = json.loads(body)
-                  validator(data)
-                  print(f"PASS {name}: HTTP {r.status}, {len(body)} bytes")
-
-          get_json(
-              "BrasilAPI CEP",
-              "https://brasilapi.com.br/api/cep/v2/08683000",
-              lambda d: (_ for _ in ()).throw(AssertionError("CEP inválido")) if str(d.get("cep","")).replace("-","") != "08683000" else None
-          )
-          get_json(
-              "BrasilAPI CNPJ",
-              "https://brasilapi.com.br/api/cnpj/v1/00000000000191",
-              lambda d: (_ for _ in ()).throw(AssertionError("CNPJ ausente")) if not d.get("cnpj") else None
-          )
-          get_json(
-              "IBGE estados",
-              "https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome",
-              lambda d: (_ for _ in ()).throw(AssertionError("SP ausente")) if not any(x.get("sigla")=="SP" for x in d) else None
-          )
-          get_json(
-              "IBGE municípios SP",
-              "https://servicodados.ibge.gov.br/api/v1/localidades/estados/SP/municipios?orderBy=nome",
-              lambda d: (_ for _ in ()).throw(AssertionError("Suzano ausente")) if not any(x.get("nome")=="Suzano" for x in d) else None
-          )
-          get_json(
-              "PNCP propostas",
-              "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?dataFinal=20260920&pagina=1&tamanhoPagina=10",
-              lambda d: None if isinstance(d,(dict,list)) else (_ for _ in ()).throw(AssertionError("JSON PNCP inválido"))
-          )
-          get_json(
-              "Compras.gov preços",
-              "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/3_consultarServico?pagina=1&tamanhoPagina=10&codigoItemCatalogo=8599",
-              lambda d: None if isinstance(d,(dict,list)) else (_ for _ in ()).throw(AssertionError("JSON Compras.gov inválido"))
-          )
+          import json
+          d=json.load(open('/tmp/cep.json'))
+          assert str(d.get('cep','')).replace('-','') == '08683000'
           PY
+
+          fetch_json "BrasilAPI CNPJ" "https://brasilapi.com.br/api/cnpj/v1/00000000000191" /tmp/cnpj.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/cnpj.json'))
+          assert d.get('cnpj')
+          PY
+
+          fetch_json "IBGE estados" "https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome" /tmp/uf.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/uf.json'))
+          assert any(x.get('sigla') == 'SP' for x in d)
+          PY
+
+          fetch_json "IBGE municípios SP" "https://servicodados.ibge.gov.br/api/v1/localidades/estados/SP/municipios?orderBy=nome" /tmp/cities.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/cities.json'))
+          assert any(x.get('nome') == 'Suzano' for x in d)
+          PY
+
+          fetch_json "PNCP propostas" "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?dataFinal=20260920&pagina=1&tamanhoPagina=10" /tmp/pncp.json
+          fetch_json "Compras.gov preços" "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/3_consultarServico?pagina=1&tamanhoPagina=10&codigoItemCatalogo=8599" /tmp/compras.json
 
       - name: Verify fiscal and shipping hosts are reachable over TLS
         shell: bash
