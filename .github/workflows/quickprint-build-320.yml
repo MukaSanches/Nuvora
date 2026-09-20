@@ -9,15 +9,16 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      PAYLOAD_URL: "https://sdmntprbrazilsouth.oaiusercontent.com/files/00000000-7a38-820e-8add-f797c22915d7/raw?se=2026-09-20T21%3A12%3A32Z&sp=r&sv=2026-02-06&sr=b&scid=c4385ecf-f6a5-5d5e-8234-c396ed3255de&skoid=33096a49-a96b-4506-9fc4-04a7517f8175&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-20T20%3A09%3A08Z&ske=2026-09-21T20%3A09%3A08Z&sks=b&skv=2026-02-06&sig=oBcAXgla8DoC%2Bo6/xQ3gDX2FJIP1XbXd3dzhOEp0AtU%3D"
-      PASSPHRASE_URL: "https://sdmntprbrazilsouth.oaiusercontent.com/files/00000000-aa1c-820e-a629-be5716c9cec9/raw?se=2026-09-20T21%3A12%3A32Z&sp=r&sv=2026-02-06&sr=b&scid=03965aaf-990b-5f2c-b3da-e3226140476b&skoid=33096a49-a96b-4506-9fc4-04a7517f8175&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-20T13%3A56%3A39Z&ske=2026-09-21T13%3A56%3A39Z&sks=b&skv=2026-02-06&sig=i1u0rfATrNJ5yWu4iXXAYDSKa4kHfukqk/qf8m0YVnQ%3D"
-      EXPECTED_PAYLOAD_SHA256: "7e0601a5542ad51087ea7dcd7c8acc2d9cc34740f67b905d7a042b1b5b678280"
+      PAYLOAD_B64_URL: "https://sdmntprbrazilsouth.oaiusercontent.com/files/00000000-2c50-820e-b8b9-6ed66c702caf/raw?se=2026-09-20T21%3A59%3A57Z&sp=r&sv=2026-02-06&sr=b&scid=0e517c40-439c-5e0a-8866-624e518b479e&skoid=33096a49-a96b-4506-9fc4-04a7517f8175&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-20T12%3A47%3A50Z&ske=2026-09-21T12%3A47%3A50Z&sks=b&skv=2026-02-06&sig=i1MLlP4g3Yppad9UqRKwIw4yWLrlbY8Yr%2BR/gv7/r34%3D"
+      KEY_RELAY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc4OTk0Mjg3NSwicm9sZSI6InB1YmxpYyJ9.73ea2cbc4e525ada6cb86bcc36088db86eefa8aa1d6bcfe5b98fcce393a406ff"
+      EXPECTED_PAYLOAD_SHA256: "3b3b1513095f990320972f1eb014f1d7e46f7e717c56f47e5b4846c034fadd2f"
       EXPECTED_CERT_SHA256: "29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71"
 
     steps:
@@ -27,9 +28,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -L --fail --retry 4 --retry-delay 1 "$PAYLOAD_URL" -o /tmp/qp320.enc
-          curl -L --fail --retry 4 --retry-delay 1 "$PASSPHRASE_URL" -o /tmp/qp320.pass
+          curl -L --fail --retry 4 --retry-delay 1 "$PAYLOAD_B64_URL" -o /tmp/qp320.enc.b64
+          base64 --decode /tmp/qp320.enc.b64 > /tmp/qp320.enc
+          rm -f /tmp/qp320.enc.b64
           echo "$EXPECTED_PAYLOAD_SHA256  /tmp/qp320.enc" | sha256sum -c -
+
+      - name: Get build passphrase via GitHub OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          OIDC_JSON="$(curl -L --fail --retry 3 -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=quickprint-build")"
+          OIDC_TOKEN="$(printf '%s' "$OIDC_JSON" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          KEY_JSON="$(curl -L --fail --retry 3 -X POST -H "Authorization: Bearer $OIDC_TOKEN" "$KEY_RELAY_URL")"
+          printf '%s' "$KEY_JSON" | python -c 'import json,sys; print(json.load(sys.stdin)["passphrase"])' > /tmp/qp320.pass
+          chmod 600 /tmp/qp320.pass
           test -s /tmp/qp320.pass
 
       - name: Decrypt source and signing material
