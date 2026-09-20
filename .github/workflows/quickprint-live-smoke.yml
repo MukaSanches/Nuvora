@@ -67,23 +67,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          import urllib.request, urllib.error
-          urls = {
-              "NFS-e produção restrita": "https://sefin.producaorestrita.nfse.gov.br/API/SefinNacional",
-              "NFS-e produção": "https://sefin.nfse.gov.br/SefinNacional",
-              "NFS-e parametrização": "https://adn.nfse.gov.br/parametrizacao",
-              "Melhor Envio sandbox": "https://sandbox.melhorenvio.com.br",
-              "Melhor Envio produção": "https://melhorenvio.com.br",
+          probe_tls() {
+            local name="$1"
+            local url="$2"
+            local code
+            code="$(curl -sS -L --retry 3 --retry-all-errors --connect-timeout 15 --max-time 45 \
+              -A 'QuickPrintOS/3.2.1 audit' -o /dev/null -w '%{http_code}' "$url")"
+            test "$code" != "000"
+            echo "PASS $name: TLS/host reachable, HTTP $code"
           }
-          for name,url in urls.items():
-              req=urllib.request.Request(url,method="HEAD",headers={"User-Agent":"QuickPrintOS/3.2.1 audit"})
-              try:
-                  with urllib.request.urlopen(req,timeout=25) as r:
-                      print(f"PASS {name}: HTTP {r.status}")
-              except urllib.error.HTTPError as e:
-                  if 400 <= e.code < 500:
-                      print(f"PASS {name}: TLS/host reachable, HTTP {e.code}")
-                  else:
-                      raise
-          PY
+          probe_tls "NFS-e produção restrita" "https://sefin.producaorestrita.nfse.gov.br/API/SefinNacional"
+          probe_tls "NFS-e produção" "https://sefin.nfse.gov.br/SefinNacional"
+          probe_tls "NFS-e parametrização" "https://adn.nfse.gov.br/parametrizacao"
+          probe_tls "Melhor Envio sandbox" "https://sandbox.melhorenvio.com.br"
+          probe_tls "Melhor Envio produção" "https://melhorenvio.com.br"
