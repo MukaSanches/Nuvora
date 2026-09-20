@@ -20,7 +20,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, urllib.request, urllib.error
+          import json, gzip, urllib.request, urllib.error
 
           def get_json(name, url, validator):
               req = urllib.request.Request(url, headers={"User-Agent":"QuickPrintOS/3.2.1 audit","Accept-Encoding":"identity"})
