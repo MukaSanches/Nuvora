@@ -84,6 +84,7 @@ jobs:
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in /tmp/qp331-delta.enc -out /tmp/qp331-delta.zip -pass file:/tmp/qp331.pass
           unzip -q /tmp/qp331-delta.zip -d /tmp/qp331-delta
           cp -a /tmp/qp331-delta/app/. "$APP_DIR/app/"
+          sed -i 's/"$baseUrl()/"${baseUrl()}/g' app/src/main/java/br/com/quickprint/os/whatsapp/MetaEmbeddedSignupClient.kt
           sed -i 's/versionCode = 23/versionCode = 24/' app/build.gradle.kts
           sed -i 's/versionName = "3.3.0"/versionName = "3.3.1"/' app/build.gradle.kts
           rm -f /tmp/qp321.enc /tmp/qp321.zip /tmp/qp331-overlay.enc /tmp/qp331-overlay.zip /tmp/qp331-delta.enc /tmp/qp331-delta.zip /tmp/qp331.pass
