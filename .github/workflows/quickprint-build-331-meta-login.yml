@@ -1,0 +1,353 @@
+name: Quick Print OS 3.3.1 Meta Login Production Release
+
+on:
+  push:
+    branches: [ "quickprint-build-relay" ]
+    paths:
+      - ".github/workflows/quickprint-build-331-meta-login.yml"
+      - ".qpbuild/v330whatsapp/**"
+      - ".qpbuild/v331meta/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build-audit-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      KEY_RELAY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc4OTk3MTA3Niwicm9sZSI6InB1YmxpYyJ9.63a02864b7c9265347f5d3f991e25206490f79d2b0ad22301fb5d392b1a364f4"
+      EXPECTED_BASE_SHA256: "a5c79b61ac957df471634f6ca39799dc75a1aff6e2804d6aa709ce1236ebc8ad"
+      EXPECTED_OVERLAY_SHA256: "8302e5eda36bd23c3f68187bdbcb5ea891ee0f36194e56aebe97e9f451aa93d8"
+      EXPECTED_DELTA_SHA256: "63c38d1c7c37b640cdaa9c8a51520bc96f15a5d145292de360a624f314df2180"
+      EXPECTED_CERT_SHA256: "29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71"
+      APP_DIR: "/tmp/qp331"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reassemble encrypted approved 3.2.1 base
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .qpbuild/v321audit/chunk_*.b64 > /tmp/qp321.enc.b64
+          base64 --decode /tmp/qp321.enc.b64 > /tmp/qp321.enc
+          echo "$EXPECTED_BASE_SHA256  /tmp/qp321.enc" | sha256sum -c -
+          rm -f /tmp/qp321.enc.b64
+
+      - name: Reassemble encrypted WhatsApp 3.3.0 overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .qpbuild/v330whatsapp/chunk_*.b64 > /tmp/qp331-overlay.enc.b64
+          base64 --decode /tmp/qp331-overlay.enc.b64 > /tmp/qp331-overlay.enc
+          echo "$EXPECTED_OVERLAY_SHA256  /tmp/qp331-overlay.enc" | sha256sum -c -
+          rm -f /tmp/qp331-overlay.enc.b64
+
+      - name: Reassemble encrypted Meta login 3.3.1 delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .qpbuild/v331meta/chunk_*.b64 > /tmp/qp331-delta.enc.b64
+          base64 --decode /tmp/qp331-delta.enc.b64 > /tmp/qp331-delta.enc
+          echo "$EXPECTED_DELTA_SHA256  /tmp/qp331-delta.enc" | sha256sum -c -
+          rm -f /tmp/qp331-delta.enc.b64
+
+      - name: Obtain build passphrase via GitHub OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          OIDC_JSON="$(curl -L --fail --retry 3 -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=quickprint-build")"
+          OIDC_TOKEN="$(printf '%s' "$OIDC_JSON" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          KEY_JSON="$(curl -L --fail --retry 3 -X POST -H "Authorization: Bearer $OIDC_TOKEN" "$KEY_RELAY_URL")"
+          printf '%s' "$KEY_JSON" | python -c 'import json,sys; print(json.load(sys.stdin)["passphrase"])' > /tmp/qp331.pass
+          chmod 600 /tmp/qp331.pass
+          test -s /tmp/qp331.pass
+
+      - name: Decrypt approved base, apply WhatsApp 3.3.0 and Meta login 3.3.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$APP_DIR" /tmp/qp331-overlay /tmp/qp331-delta
+          mkdir -p "$APP_DIR" /tmp/qp331-overlay /tmp/qp331-delta
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in /tmp/qp321.enc -out /tmp/qp321.zip -pass file:/tmp/qp331.pass
+          unzip -q /tmp/qp321.zip -d "$APP_DIR"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in /tmp/qp331-overlay.enc -out /tmp/qp331-overlay.zip -pass file:/tmp/qp331.pass
+          unzip -q /tmp/qp331-overlay.zip -d /tmp/qp331-overlay
+          cp -a /tmp/qp331-overlay/app/. "$APP_DIR/app/"
+          cd "$APP_DIR"
+          python /tmp/qp331-overlay/apply_whatsapp_patch.py
+          sed -i 's/EXPECTED_CERT_SHA256/EXPECTED_SIGNING_CERT_SHA256/g' app/src/main/java/br/com/quickprint/os/update/UpdateManager.kt
+          sed -i '/material = "Lona",/a\            colorMode = "Colorido",' app/src/test/java/br/com/quickprint/os/whatsapp/WhatsAppModelsTest.kt
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in /tmp/qp331-delta.enc -out /tmp/qp331-delta.zip -pass file:/tmp/qp331.pass
+          unzip -q /tmp/qp331-delta.zip -d /tmp/qp331-delta
+          cp -a /tmp/qp331-delta/app/. "$APP_DIR/app/"
+          sed -i 's/versionCode = 23/versionCode = 24/' app/build.gradle.kts
+          sed -i 's/versionName = "3.3.0"/versionName = "3.3.1"/' app/build.gradle.kts
+          rm -f /tmp/qp321.enc /tmp/qp321.zip /tmp/qp331-overlay.enc /tmp/qp331-overlay.zip /tmp/qp331-delta.enc /tmp/qp331-delta.zip /tmp/qp331.pass
+          test -s app/build.gradle.kts
+          test -s app/src/main/java/br/com/quickprint/os/whatsapp/WhatsAppCloudClient.kt
+          grep -Fq 'versionCode = 24' app/build.gradle.kts
+          grep -Fq 'versionName = "3.3.1"' app/build.gradle.kts
+          test -s app/src/main/java/br/com/quickprint/os/whatsapp/MetaEmbeddedSignupClient.kt
+          test -s app/src/main/java/br/com/quickprint/os/whatsapp/MetaEmbeddedSignupDialog.kt
+          test -s app/src/test/java/br/com/quickprint/os/whatsapp/MetaEmbeddedSignupUrlTest.kt
+
+      - name: Static production gates
+        shell: bash
+        working-directory: /tmp/qp331
+        run: |
+          set -euo pipefail
+          ! grep -RInE '\b(TODO|FIXME|NotImplementedException|UnsupportedOperationException)\b' app/src/main/java
+          ! grep -RInE 'http://[A-Za-z0-9]' app/src/main/java app/src/main/res app/src/main/AndroidManifest.xml
+          grep -Fq 'com.whatsapp.w4b' app/src/main/AndroidManifest.xml
+          grep -Fq 'com.whatsapp' app/src/main/AndroidManifest.xml
+          grep -RFl 'graph.facebook.com' app/src/main/java/br/com/quickprint/os/whatsapp >/dev/null
+          grep -RFl 'v26.0' app/src/main/java/br/com/quickprint/os/whatsapp >/dev/null
+          grep -RFl 'whatsapp_cloud_access_token' app/src/main/java/br/com/quickprint/os/whatsapp >/dev/null
+          grep -RFl 'dialog/oauth' app/src/main/java/br/com/quickprint/os/whatsapp >/dev/null
+          grep -RFl 'oauth/access_token' app/src/main/java/br/com/quickprint/os/whatsapp >/dev/null
+          grep -RFl 'connect/login_success.html' app/src/main/java/br/com/quickprint/os/whatsapp >/dev/null
+          grep -RFl 'metaAppId' app/src/main/java/br/com/quickprint/os/whatsapp >/dev/null
+          grep -RFl 'metaConfigId' app/src/main/java/br/com/quickprint/os/whatsapp >/dev/null
+          ! grep -RInE '(META_APP_SECRET|meta_app_secret)' app/src/main/java/br/com/quickprint/os/whatsapp
+          grep -Fq 'EXPECTED_SIGNING_CERT_SHA256' app/src/main/java/br/com/quickprint/os/update/UpdateManager.kt
+          ! grep -RIn 'quickprint-os-updates.onrender.com' app/src/main/java
+          ! grep -RInE '(EA[A-Za-z0-9]{80,}|EAA[A-Za-z0-9]{80,})' app/src/main/java || true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0" "emulator" "system-images;android-34;default;x86_64"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Configure release signing
+        shell: bash
+        working-directory: /tmp/qp331
+        run: |
+          set -euo pipefail
+          set -a
+          source signing.env
+          set +a
+          echo "QP_KEYSTORE_PATH=$PWD/quickprint-release.p12" >> "$GITHUB_ENV"
+          echo "QP_KEYSTORE_PASSWORD=$QP_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "QP_KEY_ALIAS=$QP_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "QP_KEY_PASSWORD=$QP_KEY_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: JVM debug regression suite
+        shell: bash
+        working-directory: /tmp/qp331
+        run: |
+          set -euo pipefail
+          rm -rf app/schemas
+          mkdir -p app/schemas
+          gradle --no-daemon --stacktrace testDebugUnitTest
+          find app/schemas -type f -name '*.json' -print -exec python -m json.tool {} /dev/null \;
+
+      - name: JVM release regression suite
+        shell: bash
+        working-directory: /tmp/qp331
+        run: |
+          set -euo pipefail
+          gradle --no-daemon --stacktrace testReleaseUnitTest
+          find app/schemas -type f -name '*.json' -print -exec python -m json.tool {} /dev/null \;
+
+      - name: Android lint release
+        shell: bash
+        working-directory: /tmp/qp331
+        run: gradle --no-daemon --stacktrace lintRelease
+
+      - name: Build signed release and instrumentation APKs
+        shell: bash
+        working-directory: /tmp/qp331
+        run: gradle --no-daemon --stacktrace assembleRelease validateSigningRelease assembleDebug assembleDebugAndroidTest
+
+      - name: Prepare Android 14 approval script
+        shell: bash
+        working-directory: /tmp/qp331
+        run: |
+          cat > android-smoke.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          cd /tmp/qp331
+          ADB="$ANDROID_HOME/platform-tools/adb"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          RELEASE_APK="app/build/outputs/apk/release/app-release.apk"
+          DEBUG_APK="app/build/outputs/apk/debug/app-debug.apk"
+          TEST_APK="app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+          test -s "$RELEASE_APK"
+          test -s "$DEBUG_APK"
+          test -s "$TEST_APK"
+          "$ADB" wait-for-device
+          test "$("$ADB" shell getprop sys.boot_completed | tr -d '\r')" = "1"
+          timeout 900 "$ADB" install -r -g "$RELEASE_APK" | tee /tmp/release-install.txt
+          grep -Fq "Success" /tmp/release-install.txt
+          "$ADB" shell am start -W -n br.com.quickprint.os/.MainActivity | tee /tmp/release-start.txt
+          grep -Eq "Status: (ok|timeout)" /tmp/release-start.txt
+          ! grep -Fq "GrantPermissionsActivity" /tmp/release-start.txt
+          "$ADB" shell dumpsys package br.com.quickprint.os | grep -Fq "versionName=3.3.1"
+          "$ADB" shell pidof br.com.quickprint.os >/dev/null
+          "$ADB" shell am force-stop br.com.quickprint.os
+          "$ADB" uninstall br.com.quickprint.os | grep -Fq "Success"
+          timeout 900 "$ADB" install -r -g "$DEBUG_APK" | tee /tmp/debug-install.txt
+          grep -Fq "Success" /tmp/debug-install.txt
+          timeout 900 "$ADB" install -r -g "$TEST_APK" | tee /tmp/test-install.txt
+          grep -Fq "Success" /tmp/test-install.txt
+          TEST_PACKAGE="$("$AAPT" dump badging "$TEST_APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -1)"
+          test -n "$TEST_PACKAGE"
+          timeout 600 "$ADB" shell am instrument -w -r "$TEST_PACKAGE/androidx.test.runner.AndroidJUnitRunner" | tee /tmp/instrumentation.txt
+          grep -Eq "OK \([1-9][0-9]* tests?\)" /tmp/instrumentation.txt
+          SCRIPT
+          chmod +x android-smoke.sh
+
+      - name: Android 14 API 34 install, launch and instrumentation
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: bash /tmp/qp331/android-smoke.sh
+
+      - name: Verify final APK identity, archive and signature
+        shell: bash
+        working-directory: /tmp/qp331
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-release.apk"
+          unzip -t "$APK" >/dev/null
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          BADGING="$("$AAPT" dump badging "$APK" | head -n 1)"
+          echo "$BADGING"
+          echo "$BADGING" | grep -Fq "name='br.com.quickprint.os'"
+          echo "$BADGING" | grep -Fq "versionCode='24'"
+          echo "$BADGING" | grep -Fq "versionName='3.3.1'"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee apk-signature.txt
+          CERT="$("$APKSIGNER" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | tr '[:upper:]' '[:lower:]')"
+          test "$CERT" = "$EXPECTED_CERT_SHA256"
+          cp "$APK" QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk
+          sha256sum QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk | tee apk-sha256.txt
+          {
+            echo "package=br.com.quickprint.os"
+            echo "versionName=3.3.1"
+            echo "versionCode=24"
+            echo "certificateSha256=$CERT"
+            echo "staticAudit=PASS"
+            echo "jvmDebugTests=PASS"
+            echo "jvmReleaseTests=PASS"
+            echo "lintRelease=PASS"
+            echo "androidApi34ReleaseInstall=PASS"
+            echo "androidApi34ActivityLaunch=PASS"
+            echo "androidApi34ProcessAlive=PASS"
+            echo "androidApi34Instrumentation=PASS"
+            echo "whatsappLocalBridge=COMPILED"
+            echo "whatsappCloudApiGraphVersion=v26.0"
+            echo "metaEmbeddedSignupInApp=COMPILED_AND_TESTED"
+            echo "apkSignature=PASS"
+            echo "$BADGING"
+          } > apk-validation.txt
+
+      - name: Upload approved signed APK and evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO
+          path: |
+            /tmp/qp331/QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk
+            /tmp/qp331/apk-sha256.txt
+            /tmp/qp331/apk-signature.txt
+            /tmp/qp331/apk-validation.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish Quick Print OS 3.3.1 release
+        shell: bash
+        working-directory: /tmp/qp331
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG="quickprint-os-v3.3.1-meta-whatsapp"
+          TITLE="Quick Print OS 3.3.1 — Meta Login + WhatsApp"
+          NOTES=
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk apk-sha256.txt apk-signature.txt apk-validation.txt --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"
+          else
+            gh release create "$TAG" QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk apk-sha256.txt apk-signature.txt apk-validation.txt --target quickprint-build-relay --title "$TITLE" --notes "$NOTES"
+          fi
+
+      - name: Publish updater manifest
+        shell: bash
+        working-directory: /tmp/qp331
+        run: |
+          set -euo pipefail
+          SHA="$(sha256sum QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk | awk '{print $1}')"
+          mkdir -p "$GITHUB_WORKSPACE/quickprint"
+          cat > "$GITHUB_WORKSPACE/quickprint/latest.json" <<JSON
+          {
+            "versionCode": 24,
+            "versionName": "3.3.1",
+            "apkUrl": "https://github.com/MukaSanches/Nuvora/releases/download/quickprint-os-v3.3.1-meta-whatsapp/QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk",
+            "sha256": "$SHA",
+            "certificateSha256": "$EXPECTED_CERT_SHA256",
+            "notes": "Quick Print OS 3.3.1 — Login Meta dentro do app + Central WhatsApp e Cloud API oficial."
+          }
+          JSON
+          cd "$GITHUB_WORKSPACE"
+          git config user.name "Quick Print Release Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add quickprint/latest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "release(qp331): publish updater manifest"
+            git push origin HEAD:quickprint-build-relay
+          fi
+Quick Print OS 3.3.1 (versionCode 24)\n\nCentral WhatsApp da 3.3.0 preservada e novo login Meta dentro do próprio aplicativo: App ID/Configuration ID, Embedded Signup em navegador seguro, state anti-CSRF, troca de código OAuth, descoberta de WABA e números e seleção do número.\n\nO App Secret não é persistido no aparelho; o token final da Cloud API fica protegido pelo Android Keystore. A autenticação real exige um aplicativo Meta Business/WhatsApp configurado com credenciais e permissões válidas.\n\nValidações: JVM Debug/Release, testes do fluxo OAuth/URL, lintRelease, build assinado, Android 14/API 34, instrumentação e apksigner.'
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk apk-sha256.txt apk-signature.txt apk-validation.txt --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"
+          else
+            gh release create "$TAG" QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk apk-sha256.txt apk-signature.txt apk-validation.txt --target quickprint-build-relay --title "$TITLE" --notes "$NOTES"
+          fi
+
+      - name: Publish updater manifest
+        shell: bash
+        working-directory: /tmp/qp331
+        run: |
+          set -euo pipefail
+          SHA="$(sha256sum QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk | awk '{print $1}')"
+          mkdir -p "$GITHUB_WORKSPACE/quickprint"
+          cat > "$GITHUB_WORKSPACE/quickprint/latest.json" <<JSON
+          {
+            "versionCode": 24,
+            "versionName": "3.3.1",
+            "apkUrl": "https://github.com/MukaSanches/Nuvora/releases/download/quickprint-os-v3.3.1-meta-whatsapp/QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk",
+            "sha256": "$SHA",
+            "certificateSha256": "$EXPECTED_CERT_SHA256",
+            "notes": "Quick Print OS 3.3.0 — Central WhatsApp, Cloud API oficial e automações."
+          }
+          JSON
+          cd "$GITHUB_WORKSPACE"
+          git config user.name "Quick Print Release Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add quickprint/latest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "release(qp330): publish updater manifest"
+            git push origin HEAD:quickprint-build-relay
+          fi
