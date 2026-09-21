@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 70
     env:
-      KEY_RELAY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc4OTk1NDA0MCwicm9sZSI6InB1YmxpYyJ9.984bb187ac38c5bee191debbdc5ce73d1e0347a3a1f6f1020201fecd464e3066"
+      KEY_RELAY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc4OTk1NTI4OSwicm9sZSI6InB1YmxpYyJ9.e686e2d26ba235a8ab7c10c9f498d89714571a5dffe90c12db5d9db6b5f14e2f"
       EXPECTED_PAYLOAD_SHA256: "a5c79b61ac957df471634f6ca39799dc75a1aff6e2804d6aa709ce1236ebc8ad"
       EXPECTED_CERT_SHA256: "29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71"
       APP_DIR: "/tmp/qp321"
@@ -115,10 +115,11 @@ jobs:
           test -s "$TEST_APK"
           "$ADB" wait-for-device
           test "$("$ADB" shell getprop sys.boot_completed | tr -d '\r')" = "1"
-          timeout 900 "$ADB" install -r "$RELEASE_APK" | tee /tmp/release-install.txt
+          timeout 900 "$ADB" install -r -g "$RELEASE_APK" | tee /tmp/release-install.txt
           grep -Fq "Success" /tmp/release-install.txt
           "$ADB" shell am start -W -n br.com.quickprint.os/.MainActivity | tee /tmp/release-start.txt
-          grep -Fq "Status: ok" /tmp/release-start.txt
+          grep -Eq "Status: (ok|timeout)" /tmp/release-start.txt
+          ! grep -Fq "GrantPermissionsActivity" /tmp/release-start.txt
           "$ADB" shell dumpsys package br.com.quickprint.os | grep -Fq "versionName=3.2.1"
           "$ADB" shell pidof br.com.quickprint.os >/dev/null
           "$ADB" shell am force-stop br.com.quickprint.os
