@@ -1,0 +1,204 @@
+name: Quick Print OS 3.2.1 Final Android Approval
+
+on:
+  push:
+    branches: [ "quickprint-build-relay" ]
+    paths:
+      - ".github/workflows/quickprint-final-321.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  final-approval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      KEY_RELAY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc4OTk1MTU5NCwicm9sZSI6InB1YmxpYyJ9.a528b62f0356c817dff4f81c72781d6ee43c0af210cefabbe4f0c6612d92ef5f"
+      EXPECTED_PAYLOAD_SHA256: "a5c79b61ac957df471634f6ca39799dc75a1aff6e2804d6aa709ce1236ebc8ad"
+      EXPECTED_CERT_SHA256: "29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71"
+      APP_DIR: "/tmp/qp321"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reassemble encrypted audited payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .qpbuild/v321audit/chunk_*.b64 > /tmp/qp321.enc.b64
+          base64 --decode /tmp/qp321.enc.b64 > /tmp/qp321.enc
+          rm -f /tmp/qp321.enc.b64
+          echo "$EXPECTED_PAYLOAD_SHA256  /tmp/qp321.enc" | sha256sum -c -
+
+      - name: Obtain decryption passphrase via GitHub OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          OIDC_JSON="$(curl -L --fail --retry 3 -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=quickprint-build")"
+          OIDC_TOKEN="$(printf '%s' "$OIDC_JSON" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          KEY_JSON="$(curl -L --fail --retry 3 -X POST -H "Authorization: Bearer $OIDC_TOKEN" "$KEY_RELAY_URL")"
+          printf '%s' "$KEY_JSON" | python -c 'import json,sys; print(json.load(sys.stdin)["passphrase"])' > /tmp/qp321.pass
+          chmod 600 /tmp/qp321.pass
+          test -s /tmp/qp321.pass
+
+      - name: Decrypt audited source and signing material
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$APP_DIR"
+          mkdir -p "$APP_DIR"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in /tmp/qp321.enc -out /tmp/qp321.zip -pass file:/tmp/qp321.pass
+          unzip -q /tmp/qp321.zip -d "$APP_DIR"
+          rm -f /tmp/qp321.enc /tmp/qp321.pass /tmp/qp321.zip
+          test -s "$APP_DIR/app/build.gradle.kts"
+          test -s "$APP_DIR/quickprint-release.p12"
+          grep -Fq 'versionCode = 22' "$APP_DIR/app/build.gradle.kts"
+          grep -Fq 'versionName = "3.2.1"' "$APP_DIR/app/build.gradle.kts"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android 35 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0" "emulator" "system-images;android-35;default;x86_64"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Configure release signing
+        shell: bash
+        working-directory: /tmp/qp321
+        run: |
+          set -euo pipefail
+          set -a
+          source signing.env
+          set +a
+          echo "QP_KEYSTORE_PATH=$PWD/quickprint-release.p12" >> "$GITHUB_ENV"
+          echo "QP_KEYSTORE_PASSWORD=$QP_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "QP_KEY_ALIAS=$QP_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "QP_KEY_PASSWORD=$QP_KEY_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Build release and Android test APKs
+        shell: bash
+        working-directory: /tmp/qp321
+        run: |
+          set -euo pipefail
+          rm -rf app/schemas
+          mkdir -p app/schemas
+          gradle --no-daemon --stacktrace assembleRelease validateSigningRelease assembleDebug assembleDebugAndroidTest
+
+      - name: Android 35 install, launch and instrumentation
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_4
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: |
+            set -eu
+            cd /tmp/qp321
+            ADB="$ANDROID_HOME/platform-tools/adb"
+            AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+            RELEASE_APK="app/build/outputs/apk/release/app-release.apk"
+            DEBUG_APK="app/build/outputs/apk/debug/app-debug.apk"
+            TEST_APK="app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+            test -s "$RELEASE_APK"
+            test -s "$DEBUG_APK"
+            test -s "$TEST_APK"
+            "$ADB" wait-for-device
+            test "$("$ADB" shell getprop sys.boot_completed | tr -d '\r')" = "1"
+            timeout 300 "$ADB" install --no-streaming -r "$RELEASE_APK" > /tmp/release-install.txt
+            grep -Fq "Success" /tmp/release-install.txt
+            "$ADB" shell am start -W -n br.com.quickprint.os/.MainActivity > /tmp/release-start.txt
+            cat /tmp/release-start.txt
+            grep -Fq "Status: ok" /tmp/release-start.txt
+            "$ADB" shell dumpsys package br.com.quickprint.os | grep -Fq "versionName=3.2.1"
+            "$ADB" shell pidof br.com.quickprint.os >/dev/null
+            "$ADB" shell am force-stop br.com.quickprint.os
+            "$ADB" uninstall br.com.quickprint.os | grep -Fq "Success"
+            timeout 300 "$ADB" install --no-streaming -r -g "$DEBUG_APK" > /tmp/debug-install.txt
+            grep -Fq "Success" /tmp/debug-install.txt
+            timeout 300 "$ADB" install --no-streaming -r -g "$TEST_APK" > /tmp/test-install.txt
+            grep -Fq "Success" /tmp/test-install.txt
+            TEST_PACKAGE="$("$AAPT" dump badging "$TEST_APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -1)"
+            test -n "$TEST_PACKAGE"
+            timeout 600 "$ADB" shell am instrument -w -r "$TEST_PACKAGE/androidx.test.runner.AndroidJUnitRunner" > /tmp/instrumentation.txt
+            cat /tmp/instrumentation.txt
+            grep -Eq "OK \([1-9][0-9]* tests?\)" /tmp/instrumentation.txt
+
+      - name: Verify final APK identity and signature
+        shell: bash
+        working-directory: /tmp/qp321
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-release.apk"
+          unzip -t "$APK" >/dev/null
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          BADGING="$("$AAPT" dump badging "$APK" | head -n 1)"
+          echo "$BADGING"
+          echo "$BADGING" | grep -Fq "name='br.com.quickprint.os'"
+          echo "$BADGING" | grep -Fq "versionCode='22'"
+          echo "$BADGING" | grep -Fq "versionName='3.2.1'"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee apk-signature.txt
+          CERT="$("$APKSIGNER" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | tr '[:upper:]' '[:lower:]')"
+          test "$CERT" = "$EXPECTED_CERT_SHA256"
+          cp "$APK" QuickPrintOS-v3.2.1-APROVADO.apk
+          sha256sum QuickPrintOS-v3.2.1-APROVADO.apk | tee apk-sha256.txt
+          {
+            echo "package=br.com.quickprint.os"
+            echo "versionName=3.2.1"
+            echo "versionCode=22"
+            echo "certificateSha256=$CERT"
+            echo "priorStaticAudit=PASS"
+            echo "priorJvmDebugTests=PASS"
+            echo "priorJvmReleaseTests=PASS"
+            echo "priorLintRelease=PASS"
+            echo "android35ReleaseInstall=PASS"
+            echo "android35ActivityLaunch=PASS"
+            echo "android35ProcessAlive=PASS"
+            echo "android35Instrumentation=PASS"
+            echo "apkSignature=PASS"
+            echo "$BADGING"
+          } > apk-validation.txt
+
+      - name: Upload final approval evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuickPrintOS-v3.2.1-APROVADO
+          path: |
+            /tmp/qp321/QuickPrintOS-v3.2.1-APROVADO.apk
+            /tmp/qp321/apk-sha256.txt
+            /tmp/qp321/apk-signature.txt
+            /tmp/qp321/apk-validation.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish approved GitHub Release
+        shell: bash
+        working-directory: /tmp/qp321
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG="quickprint-os-v3.2.1-approved"
+          TITLE="Quick Print OS 3.2.1 — APROVADO"
+          NOTES=$'Quick Print OS 3.2.1 (versionCode 22)\n\nRelease auditada e assinada.\n\nValidações: auditoria estática, JVM Debug/Release, lintRelease, build release, instalação Android 35, abertura da MainActivity, processo ativo, instrumentação Android e apksigner.\n\nCertificado SHA-256: 29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71'
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" QuickPrintOS-v3.2.1-APROVADO.apk apk-sha256.txt apk-signature.txt apk-validation.txt --clobber
+          else
+            gh release create "$TAG" QuickPrintOS-v3.2.1-APROVADO.apk apk-sha256.txt apk-signature.txt apk-validation.txt --target quickprint-build-relay --title "$TITLE" --notes "$NOTES"
+          fi
