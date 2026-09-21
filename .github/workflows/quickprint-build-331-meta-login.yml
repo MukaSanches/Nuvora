@@ -285,12 +285,20 @@ jobs:
           set -euo pipefail
           TAG="quickprint-os-v3.3.1-meta-whatsapp"
           TITLE="Quick Print OS 3.3.1 — Meta Login + WhatsApp"
-          NOTES=
+          cat > /tmp/release-notes.txt <<'NOTES'
+          Quick Print OS 3.3.1 (versionCode 24)
+
+          Central WhatsApp 3.3.0 preservada e novo login Meta dentro do próprio aplicativo: App ID/Configuration ID, navegador seguro, state anti-CSRF, troca do código OAuth, descoberta de WABA e números e seleção do número.
+
+          O App Secret não é persistido no aparelho; o token final da Cloud API fica protegido pelo Android Keystore. A autenticação real exige um aplicativo Meta Business/WhatsApp configurado com credenciais e permissões válidas.
+
+          Validações: JVM Debug/Release, teste do fluxo OAuth/URL, lintRelease, build assinado, Android 14/API 34, instrumentação e apksigner.
+          NOTES
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk apk-sha256.txt apk-signature.txt apk-validation.txt --clobber
-            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"
+            gh release edit "$TAG" --title "$TITLE" --notes-file /tmp/release-notes.txt
           else
-            gh release create "$TAG" QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk apk-sha256.txt apk-signature.txt apk-validation.txt --target quickprint-build-relay --title "$TITLE" --notes "$NOTES"
+            gh release create "$TAG" QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk apk-sha256.txt apk-signature.txt apk-validation.txt --target quickprint-build-relay --title "$TITLE" --notes-file /tmp/release-notes.txt
           fi
 
       - name: Publish updater manifest
@@ -316,38 +324,5 @@ jobs:
           git add quickprint/latest.json
           if ! git diff --cached --quiet; then
             git commit -m "release(qp331): publish updater manifest"
-            git push origin HEAD:quickprint-build-relay
-          fi
-Quick Print OS 3.3.1 (versionCode 24)\n\nCentral WhatsApp da 3.3.0 preservada e novo login Meta dentro do próprio aplicativo: App ID/Configuration ID, Embedded Signup em navegador seguro, state anti-CSRF, troca de código OAuth, descoberta de WABA e números e seleção do número.\n\nO App Secret não é persistido no aparelho; o token final da Cloud API fica protegido pelo Android Keystore. A autenticação real exige um aplicativo Meta Business/WhatsApp configurado com credenciais e permissões válidas.\n\nValidações: JVM Debug/Release, testes do fluxo OAuth/URL, lintRelease, build assinado, Android 14/API 34, instrumentação e apksigner.'
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk apk-sha256.txt apk-signature.txt apk-validation.txt --clobber
-            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"
-          else
-            gh release create "$TAG" QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk apk-sha256.txt apk-signature.txt apk-validation.txt --target quickprint-build-relay --title "$TITLE" --notes "$NOTES"
-          fi
-
-      - name: Publish updater manifest
-        shell: bash
-        working-directory: /tmp/qp331
-        run: |
-          set -euo pipefail
-          SHA="$(sha256sum QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk | awk '{print $1}')"
-          mkdir -p "$GITHUB_WORKSPACE/quickprint"
-          cat > "$GITHUB_WORKSPACE/quickprint/latest.json" <<JSON
-          {
-            "versionCode": 24,
-            "versionName": "3.3.1",
-            "apkUrl": "https://github.com/MukaSanches/Nuvora/releases/download/quickprint-os-v3.3.1-meta-whatsapp/QuickPrintOS-v3.3.1-Meta-WhatsApp-APROVADO.apk",
-            "sha256": "$SHA",
-            "certificateSha256": "$EXPECTED_CERT_SHA256",
-            "notes": "Quick Print OS 3.3.0 — Central WhatsApp, Cloud API oficial e automações."
-          }
-          JSON
-          cd "$GITHUB_WORKSPACE"
-          git config user.name "Quick Print Release Bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add quickprint/latest.json
-          if ! git diff --cached --quiet; then
-            git commit -m "release(qp330): publish updater manifest"
             git push origin HEAD:quickprint-build-relay
           fi
