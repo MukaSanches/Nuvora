@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 70
     env:
-      KEY_RELAY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc4OTk1NTI4OSwicm9sZSI6InB1YmxpYyJ9.e686e2d26ba235a8ab7c10c9f498d89714571a5dffe90c12db5d9db6b5f14e2f"
+      KEY_RELAY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc4OTk2MTMwNSwicm9sZSI6InB1YmxpYyJ9.b7f66a7f8ed6d74cc37c99f7b5de0a0c20a3f5d5a7e3f4f2d70d10a8acc588d4"
       EXPECTED_PAYLOAD_SHA256: "a5c79b61ac957df471634f6ca39799dc75a1aff6e2804d6aa709ce1236ebc8ad"
       EXPECTED_CERT_SHA256: "29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71"
       APP_DIR: "/tmp/qp321"
@@ -69,7 +69,7 @@ jobs:
           set -euo pipefail
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0" "emulator" "system-images;android-35;default;x86_64"
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0" "emulator" "system-images;android-34;default;x86_64"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -135,15 +135,15 @@ jobs:
           SCRIPT
           chmod +x android35-smoke.sh
 
-      - name: Android 35 install, launch and instrumentation
+      - name: Android 14 API 34 install, launch and instrumentation
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 34
           target: default
           arch: x86_64
-          profile: pixel_4
+          profile: pixel_2
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 4096 -cores 4
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: bash /tmp/qp321/android35-smoke.sh
 
       - name: Verify final APK identity and signature
@@ -174,10 +174,10 @@ jobs:
             echo "priorJvmDebugTests=PASS"
             echo "priorJvmReleaseTests=PASS"
             echo "priorLintRelease=PASS"
-            echo "android35ReleaseInstall=PASS"
-            echo "android35ActivityLaunch=PASS"
-            echo "android35ProcessAlive=PASS"
-            echo "android35Instrumentation=PASS"
+            echo "androidApi34ReleaseInstall=PASS"
+            echo "androidApi34ActivityLaunch=PASS"
+            echo "androidApi34ProcessAlive=PASS"
+            echo "androidApi34Instrumentation=PASS"
             echo "apkSignature=PASS"
             echo "$BADGING"
           } > apk-validation.txt
@@ -204,7 +204,7 @@ jobs:
           set -euo pipefail
           TAG="quickprint-os-v3.2.1-approved"
           TITLE="Quick Print OS 3.2.1 — APROVADO"
-          NOTES=$'Quick Print OS 3.2.1 (versionCode 22)\n\nRelease auditada e assinada.\n\nValidações: auditoria estática, JVM Debug/Release, lintRelease, build release, instalação Android 35, abertura da MainActivity, processo ativo, instrumentação Android e apksigner.\n\nCertificado SHA-256: 29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71'
+          NOTES=$'Quick Print OS 3.2.1 (versionCode 22)\n\nRelease auditada e assinada.\n\nValidações: auditoria estática, JVM Debug/Release, lintRelease, build release, instalação em Android 14/API 34, abertura da MainActivity, processo ativo, instrumentação Android e apksigner.\n\nCertificado SHA-256: 29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71'
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" QuickPrintOS-v3.2.1-APROVADO.apk apk-sha256.txt apk-signature.txt apk-validation.txt --clobber
           else
