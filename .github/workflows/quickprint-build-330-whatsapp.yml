@@ -69,6 +69,7 @@ jobs:
           cd "$APP_DIR"
           python /tmp/qp330-overlay/apply_whatsapp_patch.py
           sed -i 's/EXPECTED_CERT_SHA256/EXPECTED_SIGNING_CERT_SHA256/g' app/src/main/java/br/com/quickprint/os/update/UpdateManager.kt
+          sed -i '/material = "Lona",/a\            colorMode = "Colorido",' app/src/test/java/br/com/quickprint/os/whatsapp/WhatsAppModelsTest.kt
           rm -f /tmp/qp321.enc /tmp/qp321.zip /tmp/qp330-overlay.enc /tmp/qp330-overlay.zip /tmp/qp330.pass
           test -s app/build.gradle.kts
           test -s app/src/main/java/br/com/quickprint/os/whatsapp/WhatsAppCloudClient.kt
