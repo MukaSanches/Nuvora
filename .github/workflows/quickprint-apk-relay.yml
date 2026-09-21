@@ -1,4 +1,4 @@
-name: Quick Print APK Relay
+name: Quick Print OS PR28 Signed Release
 
 on:
   push:
@@ -9,29 +9,149 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
-  relay-apk:
+  build-pr28:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 45
+    env:
+      SOURCE_URL: "https://quickprint-android-0sg3.hatchable.site/api/qp28-source?_preview=eyJzbHVnIjoicXVpY2twcmludC1hbmRyb2lkLTBzZzMiLCJleHAiOjE3OTAwMDA2MTIsInJvbGUiOiJwdWJsaWMifQ.0514a952a567a7c0bc37487f6c34d0030a3e106472c37e1e54c09ffcd2829d80"
+      SOURCE_SHA256: "d807f4e036f472f5e5b6cb2a50cd5a13ced7fe8411e16cbeb62c84758bd349ea"
+      KEY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc5MDAwMDYxNiwicm9sZSI6InB1YmxpYyJ9.fce53a5ff38cb124cd74491f5e85a1bdd0f9790aa4fdd3d3277fe1b07ac60b1e"
+      EXPECTED_CERT_SHA256: "29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71"
+      APP_DIR: "/tmp/qp28"
+
     steps:
-      - name: Baixar APK já validado
-        run: |
-          curl -L --fail --retry 5 --retry-delay 2             -o QuickPrintOS-v1.0.0-debug.apk             https://quickprint-os-apk-v1.onrender.com/QuickPrintOS-v1.0.0-debug.apk
+      - uses: actions/checkout@v4
 
-      - name: Validar arquivo APK
+      - name: Obtain protected build passphrase
+        shell: bash
         run: |
-          test -s QuickPrintOS-v1.0.0-debug.apk
-          unzip -t QuickPrintOS-v1.0.0-debug.apk
-          sha256sum QuickPrintOS-v1.0.0-debug.apk | tee QuickPrintOS-v1.0.0-debug.sha256
-          ls -lh QuickPrintOS-v1.0.0-debug.apk
+          set -euo pipefail
+          OIDC_JSON="$(curl -L --fail --retry 3 -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=quickprint-build")"
+          OIDC_TOKEN="$(printf '%s' "$OIDC_JSON" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          KEY_JSON="$(curl -L --fail --retry 3 -X POST -H "Authorization: Bearer $OIDC_TOKEN" "$KEY_URL")"
+          printf '%s' "$KEY_JSON" | python -c 'import json,sys; print(json.load(sys.stdin)["passphrase"])' > /tmp/qp28.pass
+          chmod 600 /tmp/qp28.pass
+          test -s /tmp/qp28.pass
 
-      - name: Publicar APK
+      - name: Download and decrypt exact PR28 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 "$SOURCE_URL" -o /tmp/qp28.gcm
+          echo "$SOURCE_SHA256  /tmp/qp28.gcm" | sha256sum -c -
+          node <<'NODE'
+          const fs=require('fs'), crypto=require('crypto');
+          const b=fs.readFileSync('/tmp/qp28.gcm');
+          if(b.subarray(0,8).toString()!=='QPGCM002') throw new Error('bad source payload');
+          const salt=b.subarray(8,24), iv=b.subarray(24,36), body=b.subarray(36);
+          const tag=body.subarray(body.length-16), cipher=body.subarray(0,body.length-16);
+          const pass=fs.readFileSync('/tmp/qp28.pass','utf8').trim();
+          const key=crypto.pbkdf2Sync(pass,salt,250000,32,'sha256');
+          const d=crypto.createDecipheriv('aes-256-gcm',key,iv); d.setAuthTag(tag);
+          fs.writeFileSync('/tmp/qp28.json',Buffer.concat([d.update(cipher),d.final()]));
+          NODE
+          rm -rf "$APP_DIR" && mkdir -p "$APP_DIR"
+          python <<'PY'
+          import base64,json
+          from pathlib import Path
+          root=Path("/tmp/qp28").resolve()
+          obj=json.loads(Path("/tmp/qp28.json").read_text())
+          assert obj["format"]=="QPPR28-2"
+          assert obj["head"]=="2209bf509affa0483dc5175e3e4116efcc850467"
+          assert len(obj["files"])==184
+          for item in obj["files"]:
+              rel=Path(item["path"])
+              if rel.is_absolute() or ".." in rel.parts: raise RuntimeError(rel)
+              p=(root/rel).resolve()
+              if root not in p.parents: raise RuntimeError(rel)
+              p.parent.mkdir(parents=True,exist_ok=True)
+              p.write_bytes(base64.b64decode(item["b64"],validate=True))
+          PY
+          rm -f /tmp/qp28.gcm /tmp/qp28.json
+          grep -Fq 'versionCode = 21' "$APP_DIR/app/build.gradle.kts"
+          grep -Fq 'versionName = "3.2.0"' "$APP_DIR/app/build.gradle.kts"
+
+      - name: Recover validated signing material
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .qpbuild/v321audit/chunk_*.b64 > /tmp/sign.enc.b64
+          base64 --decode /tmp/sign.enc.b64 > /tmp/sign.enc
+          rm /tmp/sign.enc.b64
+          echo "a5c79b61ac957df471634f6ca39799dc75a1aff6e2804d6aa709ce1236ebc8ad  /tmp/sign.enc" | sha256sum -c -
+          mkdir -p /tmp/signing
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 250000 -in /tmp/sign.enc -out /tmp/sign.zip -pass file:/tmp/qp28.pass
+          unzip -q /tmp/sign.zip -d /tmp/signing
+          cp /tmp/signing/quickprint-release.p12 "$APP_DIR/"
+          cp /tmp/signing/signing.env "$APP_DIR/"
+          test -s "$APP_DIR/quickprint-release.p12"
+          test -s "$APP_DIR/signing.env"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android SDK 35
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Configure signing
+        shell: bash
+        working-directory: /tmp/qp28
+        run: |
+          set -euo pipefail
+          set -a; source signing.env; set +a
+          echo "QP_KEYSTORE_PATH=$PWD/quickprint-release.p12" >> "$GITHUB_ENV"
+          echo "QP_KEYSTORE_PASSWORD=$QP_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "QP_KEY_ALIAS=$QP_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "QP_KEY_PASSWORD=$QP_KEY_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Build signed release
+        working-directory: /tmp/qp28
+        run: gradle --no-daemon --stacktrace assembleRelease validateSigningRelease
+
+      - name: Verify signed APK
+        shell: bash
+        working-directory: /tmp/qp28
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          BADGING="$("$AAPT" dump badging "$APK" | head -1)"
+          echo "$BADGING" | grep -Fq "name='br.com.quickprint.os'"
+          echo "$BADGING" | grep -Fq "versionCode='21'"
+          echo "$BADGING" | grep -Fq "versionName='3.2.0'"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee apk-signature.txt
+          CERT="$("$APKSIGNER" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | tr '[:upper:]' '[:lower:]')"
+          test "$CERT" = "$EXPECTED_CERT_SHA256"
+          cp "$APK" QuickPrintOS-PR28-v3.2.0-signed.apk
+          sha256sum QuickPrintOS-PR28-v3.2.0-signed.apk | tee apk-sha256.txt
+          printf 'pr=28\nhead=2209bf509affa0483dc5175e3e4116efcc850467\npackage=br.com.quickprint.os\nversionName=3.2.0\nversionCode=21\ncertificateSha256=%s\n' "$CERT" > apk-validation.txt
+          rm -f /tmp/qp28.pass
+
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: QuickPrintOS-v1.0.0-debug
+          name: QuickPrintOS-PR28-v3.2.0-signed
           path: |
-            QuickPrintOS-v1.0.0-debug.apk
-            QuickPrintOS-v1.0.0-debug.sha256
+            /tmp/qp28/QuickPrintOS-PR28-v3.2.0-signed.apk
+            /tmp/qp28/apk-sha256.txt
+            /tmp/qp28/apk-signature.txt
+            /tmp/qp28/apk-validation.txt
           if-no-files-found: error
           retention-days: 30
