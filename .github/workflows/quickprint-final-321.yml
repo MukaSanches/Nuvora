@@ -97,6 +97,43 @@ jobs:
           mkdir -p app/schemas
           gradle --no-daemon --stacktrace assembleRelease validateSigningRelease assembleDebug assembleDebugAndroidTest
 
+      - name: Prepare Android 35 approval script
+        shell: bash
+        working-directory: /tmp/qp321
+        run: |
+          cat > android35-smoke.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          cd /tmp/qp321
+          ADB="$ANDROID_HOME/platform-tools/adb"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          RELEASE_APK="app/build/outputs/apk/release/app-release.apk"
+          DEBUG_APK="app/build/outputs/apk/debug/app-debug.apk"
+          TEST_APK="app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+          test -s "$RELEASE_APK"
+          test -s "$DEBUG_APK"
+          test -s "$TEST_APK"
+          "$ADB" wait-for-device
+          test "$("$ADB" shell getprop sys.boot_completed | tr -d '\r')" = "1"
+          timeout 300 "$ADB" install --no-streaming -r "$RELEASE_APK" | tee /tmp/release-install.txt
+          grep -Fq "Success" /tmp/release-install.txt
+          "$ADB" shell am start -W -n br.com.quickprint.os/.MainActivity | tee /tmp/release-start.txt
+          grep -Fq "Status: ok" /tmp/release-start.txt
+          "$ADB" shell dumpsys package br.com.quickprint.os | grep -Fq "versionName=3.2.1"
+          "$ADB" shell pidof br.com.quickprint.os >/dev/null
+          "$ADB" shell am force-stop br.com.quickprint.os
+          "$ADB" uninstall br.com.quickprint.os | grep -Fq "Success"
+          timeout 300 "$ADB" install --no-streaming -r -g "$DEBUG_APK" | tee /tmp/debug-install.txt
+          grep -Fq "Success" /tmp/debug-install.txt
+          timeout 300 "$ADB" install --no-streaming -r -g "$TEST_APK" | tee /tmp/test-install.txt
+          grep -Fq "Success" /tmp/test-install.txt
+          TEST_PACKAGE="$("$AAPT" dump badging "$TEST_APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -1)"
+          test -n "$TEST_PACKAGE"
+          timeout 600 "$ADB" shell am instrument -w -r "$TEST_PACKAGE/androidx.test.runner.AndroidJUnitRunner" | tee /tmp/instrumentation.txt
+          grep -Eq "OK \([1-9][0-9]* tests?\)" /tmp/instrumentation.txt
+          SCRIPT
+          chmod +x android35-smoke.sh
+
       - name: Android 35 install, launch and instrumentation
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -106,37 +143,7 @@ jobs:
           profile: pixel_4
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: |
-            set -eu
-            cd /tmp/qp321
-            ADB="$ANDROID_HOME/platform-tools/adb"
-            AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
-            RELEASE_APK="app/build/outputs/apk/release/app-release.apk"
-            DEBUG_APK="app/build/outputs/apk/debug/app-debug.apk"
-            TEST_APK="app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
-            test -s "$RELEASE_APK"
-            test -s "$DEBUG_APK"
-            test -s "$TEST_APK"
-            "$ADB" wait-for-device
-            test "$("$ADB" shell getprop sys.boot_completed | tr -d '\r')" = "1"
-            timeout 300 "$ADB" install --no-streaming -r "$RELEASE_APK" > /tmp/release-install.txt
-            grep -Fq "Success" /tmp/release-install.txt
-            "$ADB" shell am start -W -n br.com.quickprint.os/.MainActivity > /tmp/release-start.txt
-            cat /tmp/release-start.txt
-            grep -Fq "Status: ok" /tmp/release-start.txt
-            "$ADB" shell dumpsys package br.com.quickprint.os | grep -Fq "versionName=3.2.1"
-            "$ADB" shell pidof br.com.quickprint.os >/dev/null
-            "$ADB" shell am force-stop br.com.quickprint.os
-            "$ADB" uninstall br.com.quickprint.os | grep -Fq "Success"
-            timeout 300 "$ADB" install --no-streaming -r -g "$DEBUG_APK" > /tmp/debug-install.txt
-            grep -Fq "Success" /tmp/debug-install.txt
-            timeout 300 "$ADB" install --no-streaming -r -g "$TEST_APK" > /tmp/test-install.txt
-            grep -Fq "Success" /tmp/test-install.txt
-            TEST_PACKAGE="$("$AAPT" dump badging "$TEST_APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -1)"
-            test -n "$TEST_PACKAGE"
-            timeout 600 "$ADB" shell am instrument -w -r "$TEST_PACKAGE/androidx.test.runner.AndroidJUnitRunner" > /tmp/instrumentation.txt
-            cat /tmp/instrumentation.txt
-            grep -Eq "OK \([1-9][0-9]* tests?\)" /tmp/instrumentation.txt
+          script: bash /tmp/qp321/android35-smoke.sh
 
       - name: Verify final APK identity and signature
         shell: bash
