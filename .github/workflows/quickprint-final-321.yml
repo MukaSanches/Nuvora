@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 70
     env:
-      KEY_RELAY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc4OTk1MTU5NCwicm9sZSI6InB1YmxpYyJ9.a528b62f0356c817dff4f81c72781d6ee43c0af210cefabbe4f0c6612d92ef5f"
+      KEY_RELAY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc4OTk1NDA0MCwicm9sZSI6InB1YmxpYyJ9.984bb187ac38c5bee191debbdc5ce73d1e0347a3a1f6f1020201fecd464e3066"
       EXPECTED_PAYLOAD_SHA256: "a5c79b61ac957df471634f6ca39799dc75a1aff6e2804d6aa709ce1236ebc8ad"
       EXPECTED_CERT_SHA256: "29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71"
       APP_DIR: "/tmp/qp321"
@@ -115,7 +115,7 @@ jobs:
           test -s "$TEST_APK"
           "$ADB" wait-for-device
           test "$("$ADB" shell getprop sys.boot_completed | tr -d '\r')" = "1"
-          timeout 300 "$ADB" install --no-streaming -r "$RELEASE_APK" | tee /tmp/release-install.txt
+          timeout 900 "$ADB" install -r "$RELEASE_APK" | tee /tmp/release-install.txt
           grep -Fq "Success" /tmp/release-install.txt
           "$ADB" shell am start -W -n br.com.quickprint.os/.MainActivity | tee /tmp/release-start.txt
           grep -Fq "Status: ok" /tmp/release-start.txt
@@ -123,9 +123,9 @@ jobs:
           "$ADB" shell pidof br.com.quickprint.os >/dev/null
           "$ADB" shell am force-stop br.com.quickprint.os
           "$ADB" uninstall br.com.quickprint.os | grep -Fq "Success"
-          timeout 300 "$ADB" install --no-streaming -r -g "$DEBUG_APK" | tee /tmp/debug-install.txt
+          timeout 900 "$ADB" install -r -g "$DEBUG_APK" | tee /tmp/debug-install.txt
           grep -Fq "Success" /tmp/debug-install.txt
-          timeout 300 "$ADB" install --no-streaming -r -g "$TEST_APK" | tee /tmp/test-install.txt
+          timeout 900 "$ADB" install -r -g "$TEST_APK" | tee /tmp/test-install.txt
           grep -Fq "Success" /tmp/test-install.txt
           TEST_PACKAGE="$("$AAPT" dump badging "$TEST_APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -1)"
           test -n "$TEST_PACKAGE"
@@ -142,7 +142,7 @@ jobs:
           arch: x86_64
           profile: pixel_4
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 4096 -cores 4
           script: bash /tmp/qp321/android35-smoke.sh
 
       - name: Verify final APK identity and signature
