@@ -147,18 +147,20 @@ jobs:
         run: |
           set -euo pipefail
           set -a; source signing.env; set +a
+          echo "::add-mask::$QP_KEYSTORE_PASSWORD"
+          echo "::add-mask::$QP_KEY_PASSWORD"
           echo "QP_KEYSTORE_PATH=$PWD/quickprint-release.p12" >> "$GITHUB_ENV"
           echo "QP_KEYSTORE_PASSWORD=$QP_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
           echo "QP_KEY_ALIAS=$QP_KEY_ALIAS" >> "$GITHUB_ENV"
           echo "QP_KEY_PASSWORD=$QP_KEY_PASSWORD" >> "$GITHUB_ENV"
 
       - name: Build signed release
-        working-directory: /tmp/qp28
+        working-directory: /tmp/qp29
         run: gradle --no-daemon --stacktrace assembleRelease validateSigningRelease
 
       - name: Verify signed APK
         shell: bash
-        working-directory: /tmp/qp28
+        working-directory: /tmp/qp29
         run: |
           set -euo pipefail
           APK=app/build/outputs/apk/release/app-release.apk
