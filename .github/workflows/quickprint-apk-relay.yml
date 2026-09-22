@@ -18,7 +18,7 @@ jobs:
     env:
       SOURCE_URL: "https://quickprint-android-0sg3.hatchable.site/api/qp28-source?_preview=eyJzbHVnIjoicXVpY2twcmludC1hbmRyb2lkLTBzZzMiLCJleHAiOjE3OTAwNTQxNTMsInJvbGUiOiJwdWJsaWMifQ.5ba9e66e98defc4cda63eda7522b8477af66e23e735054a2f32a88cadc71e6a8"
       SOURCE_SHA256: "d807f4e036f472f5e5b6cb2a50cd5a13ced7fe8411e16cbeb62c84758bd349ea"
-      KEY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc5MDA1MzkxOCwicm9sZSI6InB1YmxpYyJ9.099f7fe823a782c07dca83261d8a96bdd88d6453bcbf90e2d6f0a823508682e4"
+      KEY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc5MDA1NDIyOSwicm9sZSI6InB1YmxpYyJ9.7558e25b77ea9c971ba694374699cbd6c055e829c8c50f8ec036edfd168978c3"
       EXPECTED_CERT_SHA256: "29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71"
       APP_DIR: "/tmp/qp29"
 
@@ -77,12 +77,12 @@ jobs:
       - name: Apply authenticated exact PR29 delta
         shell: bash
         env:
-          OVERLAY_URL: "https://quickprint-android-0sg3.hatchable.site/api/qp29-overlay?_preview=eyJzbHVnIjoicXVpY2twcmludC1hbmRyb2lkLTBzZzMiLCJleHAiOjE3OTAwNTQxNTMsInJvbGUiOiJwdWJsaWMifQ.5ba9e66e98defc4cda63eda7522b8477af66e23e735054a2f32a88cadc71e6a8"
+          OVERLAY_URL: "https://quickprint-build.hatchable.site/api/qp29-overlay?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc5MDA1NDIyOSwicm9sZSI6InB1YmxpYyJ9.7558e25b77ea9c971ba694374699cbd6c055e829c8c50f8ec036edfd168978c3"
         run: |
           set -euo pipefail
-          OIDC_JSON="$(curl -L --fail --retry 3 -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=quickprint-build-vault")"
+          OIDC_JSON="$(curl -L --fail --retry 3 -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=quickprint-build")"
           OIDC_TOKEN="$(printf '%s' "$OIDC_JSON" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
-          curl -L --fail --retry 3 -H "X-GitHub-OIDC: $OIDC_TOKEN" "$OVERLAY_URL" -o /tmp/qp29-overlay.json
+          curl -L --fail --retry 3 -H "Authorization: Bearer $OIDC_TOKEN" "$OVERLAY_URL" -o /tmp/qp29-overlay.json
           python <<'PY'
           import hashlib,json
           from pathlib import Path
