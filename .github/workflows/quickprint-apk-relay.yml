@@ -57,7 +57,7 @@ jobs:
           python <<'PY'
           import base64,json
           from pathlib import Path
-          root=Path("/tmp/qp28").resolve()
+          root=Path("/tmp/qp29").resolve()
           obj=json.loads(Path("/tmp/qp28.json").read_text())
           assert obj["format"]=="QPPR28-2"
           assert obj["head"]=="2209bf509affa0483dc5175e3e4116efcc850467"
