@@ -16,9 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      SOURCE_URL: "https://quickprint-android-0sg3.hatchable.site/api/qp28-source?_preview=eyJzbHVnIjoicXVpY2twcmludC1hbmRyb2lkLTBzZzMiLCJleHAiOjE3OTAwMDA2MTIsInJvbGUiOiJwdWJsaWMifQ.0514a952a567a7c0bc37487f6c34d0030a3e106472c37e1e54c09ffcd2829d80"
+      SOURCE_URL: "https://quickprint-android-0sg3.hatchable.site/api/qp28-source?_preview=eyJzbHVnIjoicXVpY2twcmludC1hbmRyb2lkLTBzZzMiLCJleHAiOjE3OTAwNTM5MjAsInJvbGUiOiJwdWJsaWMifQ.b465a73adf9ba5cf2a002425ba84a4ad15a9579b2ceea48b7872cefe88b95d0e"
       SOURCE_SHA256: "d807f4e036f472f5e5b6cb2a50cd5a13ced7fe8411e16cbeb62c84758bd349ea"
-      KEY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc5MDAwMDYxNiwicm9sZSI6InB1YmxpYyJ9.fce53a5ff38cb124cd74491f5e85a1bdd0f9790aa4fdd3d3277fe1b07ac60b1e"
+      KEY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc5MDA1MzkxOCwicm9sZSI6InB1YmxpYyJ9.099f7fe823a782c07dca83261d8a96bdd88d6453bcbf90e2d6f0a823508682e4"
       EXPECTED_CERT_SHA256: "29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71"
       APP_DIR: "/tmp/qp29"
 
