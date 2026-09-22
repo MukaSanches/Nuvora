@@ -1,4 +1,4 @@
-name: Quick Print OS PR28 Signed Release
+name: Quick Print OS PR29 Signed Release
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
   id-token: write
 
 jobs:
-  build-pr28:
+  build-pr29:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -20,7 +20,7 @@ jobs:
       SOURCE_SHA256: "d807f4e036f472f5e5b6cb2a50cd5a13ced7fe8411e16cbeb62c84758bd349ea"
       KEY_URL: "https://quickprint-build.hatchable.site/api/key?_preview=eyJzbHVnIjoicXVpY2twcmludC1idWlsZCIsImV4cCI6MTc5MDAwMDYxNiwicm9sZSI6InB1YmxpYyJ9.fce53a5ff38cb124cd74491f5e85a1bdd0f9790aa4fdd3d3277fe1b07ac60b1e"
       EXPECTED_CERT_SHA256: "29c27b8a9d6630416cbc6f366241c42fe69d6e5746d2ff768b745858a3810f71"
-      APP_DIR: "/tmp/qp28"
+      APP_DIR: "/tmp/qp29"
 
     steps:
       - uses: actions/checkout@v4
@@ -74,6 +74,40 @@ jobs:
           grep -Fq 'versionCode = 21' "$APP_DIR/app/build.gradle.kts"
           grep -Fq 'versionName = "3.2.0"' "$APP_DIR/app/build.gradle.kts"
 
+      - name: Apply authenticated exact PR29 delta
+        shell: bash
+        env:
+          OVERLAY_URL: "https://quick-print-build.hatchable.site/api/qp29-overlay?_preview=eyJzbHVnIjoicXVpY2stcHJpbnQtYnVpbGQiLCJleHAiOjE3OTAwNTM4NDUsInJvbGUiOiJwdWJsaWMifQ.85db72f26ed71e2981ee2bd14455cbb4636062746e32b9f7baf44a33b3c4f187"
+        run: |
+          set -euo pipefail
+          OIDC_JSON="$(curl -L --fail --retry 3 -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=quickprint-build-vault")"
+          OIDC_TOKEN="$(printf '%s' "$OIDC_JSON" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          curl -L --fail --retry 3 -H "Authorization: Bearer $OIDC_TOKEN" "$OVERLAY_URL" -o /tmp/qp29-overlay.json
+          python <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          root=Path("/tmp/qp29").resolve()
+          obj=json.loads(Path("/tmp/qp29-overlay.json").read_text(encoding="utf-8"))
+          assert obj["format"]=="QPPR29-DELTA-1"
+          assert obj["base"]=="2209bf509affa0483dc5175e3e4116efcc850467"
+          assert obj["head"]=="e6a74e8088a1e53bcbef62448b73732fbfb8b53a"
+          assert len(obj["files"])==16
+          for item in obj["files"]:
+              rel=Path(item["path"])
+              if rel.is_absolute() or ".." in rel.parts: raise RuntimeError(rel)
+              data=item["content"].encode("utf-8")
+              actual=hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()
+              if actual != item["sha"]:
+                  raise RuntimeError(f"git blob mismatch: {rel} {actual} != {item['sha']}")
+              p=(root/rel).resolve()
+              if root not in p.parents: raise RuntimeError(rel)
+              p.parent.mkdir(parents=True,exist_ok=True)
+              p.write_bytes(data)
+          PY
+          rm -f /tmp/qp29-overlay.json
+          grep -Fq 'versionCode = 25' "$APP_DIR/app/build.gradle.kts"
+          grep -Fq 'versionName = "3.3.2"' "$APP_DIR/app/build.gradle.kts"
+
       - name: Recover validated signing material
         shell: bash
         run: |
@@ -109,7 +143,7 @@ jobs:
 
       - name: Configure signing
         shell: bash
-        working-directory: /tmp/qp28
+        working-directory: /tmp/qp29
         run: |
           set -euo pipefail
           set -a; source signing.env; set +a
@@ -134,12 +168,12 @@ jobs:
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           BADGING="$("$AAPT" dump badging "$APK" | head -1)"
           echo "$BADGING" | grep -Fq "name='br.com.quickprint.os'"
-          echo "$BADGING" | grep -Fq "versionCode='21'"
-          echo "$BADGING" | grep -Fq "versionName='3.2.0'"
+          echo "$BADGING" | grep -Fq "versionCode='25'"
+          echo "$BADGING" | grep -Fq "versionName='3.3.2'"
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee apk-signature.txt
           CERT="$("$APKSIGNER" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | tr '[:upper:]' '[:lower:]')"
           test "$CERT" = "$EXPECTED_CERT_SHA256"
-          cp "$APK" QuickPrintOS-PR28-v3.2.0-signed.apk
+          cp "$APK" QuickPrintOS-PR29-v3.3.2-signed.apk
           sha256sum QuickPrintOS-PR28-v3.2.0-signed.apk | tee apk-sha256.txt
           printf 'pr=28\nhead=2209bf509affa0483dc5175e3e4116efcc850467\npackage=br.com.quickprint.os\nversionName=3.2.0\nversionCode=21\ncertificateSha256=%s\n' "$CERT" > apk-validation.txt
           rm -f /tmp/qp28.pass
@@ -147,11 +181,11 @@ jobs:
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: QuickPrintOS-PR28-v3.2.0-signed
+          name: QuickPrintOS-PR29-v3.3.2-signed
           path: |
-            /tmp/qp28/QuickPrintOS-PR28-v3.2.0-signed.apk
-            /tmp/qp28/apk-sha256.txt
-            /tmp/qp28/apk-signature.txt
-            /tmp/qp28/apk-validation.txt
+            /tmp/qp29/QuickPrintOS-PR29-v3.3.2-signed.apk
+            /tmp/qp29/apk-sha256.txt
+            /tmp/qp29/apk-signature.txt
+            /tmp/qp29/apk-validation.txt
           if-no-files-found: error
           retention-days: 30
